@@ -1,0 +1,10 @@
+timestamp,frame,state,source,studying,person_present,neck_flex,forward_lean,pitch,yaw,gaze_at_desk,posture_good,phone_detected,focus_score,camera_mode,neck_angle,back_angle,forward_lean_smoothed
+1770599423.237,3656,STUDYING,studying,0.8070333003997803,True,,9.1,13.5,0.0,False,True,False,86.5,ml_detector,166.1,,6.1
+1770599423.340,3657,STUDYING,studying,0.8070333003997803,True,,,13.4,-0.2,False,,False,86.5,ml_detector,,,
+1770599423.420,3658,STUDYING,studying,0.8070333003997803,True,,,13.3,-0.5,False,,False,86.5,ml_detector,,,
+1770599423.489,3659,STUDYING,studying,0.8070333003997803,True,,,13.2,-0.5,False,,False,86.5,ml_detector,,,
+1770599423.608,3660,STUDYING,studying,0.7265166640281677,True,,,13.1,-0.6,False,,False,86.5,ml_detector,,,
+1770599423.706,3661,STUDYING,studying,0.7265166640281677,True,,,13.1,-0.6,False,,False,86.5,ml_detector,,,
+1770599423.788,3662,STUDYING,studying,0.7265166640281677,True,,,13.0,-0.6,False,,False,86.5,ml_detector,,,
+1770599423.856,3663,STUDYING,studying,0.7265166640281677,True,,,13.0,-0.6,False,,False,86.5,ml_detector,,,
+1770599423.922,3664,STUDYING,studying,0.7265166640281677,True,,,12.9,-0.6,False,,False,86.5,ml_detector,,,

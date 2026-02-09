@@ -1,0 +1,40 @@
+{
+  "video": "data/test-videos/study_session_01.mov",
+  "metadata": {
+    "recorded_by": "Edward",
+    "date": "2026-02-09",
+    "description": "10 min study session with breaks"
+  },
+  "segments": [
+    {
+      "start": "0:00",
+      "end": "2:30",
+      "expected": "STUDYING",
+      "label": "Normal studying at desk"
+    },
+    {
+      "start": "2:30",
+      "end": "3:15",
+      "expected": "SLOUCHING",
+      "label": "Intentional slouch test"
+    },
+    {
+      "start": "3:15",
+      "end": "4:00",
+      "expected": "DISTRACTED",
+      "label": "Eating at desk"
+    },
+    {
+      "start": "4:00",
+      "end": "4:10",
+      "expected": "ABSENT",
+      "label": "Left the frame"
+    },
+    {
+      "start": "4:10",
+      "end": "5:00",
+      "expected": "STUDYING",
+      "label": "Back to studying"
+    }
+  ]
+}

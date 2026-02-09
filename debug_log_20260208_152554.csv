@@ -1,0 +1,361 @@
+timestamp,frame,state,source,studying,person_present,neck_flex,forward_lean,pitch,yaw,gaze_at_desk,posture_good,phone_detected,focus_score,camera_mode
+1770539154.539,259,WARNING - LOOKING AWAY,side_face_override,False,True,15.0,14.4,17.2,5.8,True,True,False,76.6,side
+1770539154.712,260,WARNING - LOOKING AWAY,side_face_override,False,True,14.9,14.4,17.1,5.9,True,True,False,76.5,side
+1770539154.878,261,WARNING - LOOKING AWAY,side_face_override,False,True,14.8,14.3,17.1,6.1,True,True,False,76.5,side
+1770539155.033,262,WARNING - LOOKING AWAY,side_face_override,False,True,14.6,14.2,17.1,6.3,True,True,False,76.4,side
+1770539155.208,263,WARNING - LOOKING AWAY,side_face_override,False,True,14.6,14.1,17.2,6.8,True,True,False,76.4,side
+1770539155.384,264,WARNING - LOOKING AWAY,side_face_override,False,True,14.6,14.1,17.4,8.5,True,True,False,76.3,side
+1770539155.567,265,WARNING - LOOKING AWAY,pose_side,False,True,14.7,14.1,,,,True,False,76.3,side
+1770539155.745,266,WARNING - LOOKING AWAY,pose_side,False,True,14.8,14.3,,,,True,False,76.2,side
+1770539155.913,267,WARNING - LOOKING AWAY,pose_side,False,True,15.0,14.4,,,,True,False,76.1,side
+1770539156.075,268,WARNING - LOOKING AWAY,pose_side,False,True,15.1,14.4,,,,True,False,76.1,side
+1770539156.235,269,WARNING - LOOKING AWAY,pose_side,False,True,15.2,14.5,,,,True,False,76.0,side
+1770539156.403,270,WARNING - LOOKING AWAY,pose_side,False,True,15.3,14.6,,,,True,False,76.0,side
+1770539156.577,271,WARNING - LOOKING AWAY,pose_side,False,True,15.4,14.6,,,,True,False,75.9,side
+1770539156.739,272,WARNING - LOOKING AWAY,pose_side,False,True,15.5,14.7,,,,True,False,75.9,side
+1770539156.914,273,WARNING - LOOKING AWAY,pose_side,False,True,15.6,14.7,,,,True,False,75.8,side
+1770539157.071,274,WARNING - LOOKING AWAY,pose_side,False,True,15.6,14.7,,,,True,False,75.8,side
+1770539157.235,275,WARNING - LOOKING AWAY,pose_side,False,True,15.7,14.8,,,,True,False,75.7,side
+1770539157.401,276,WARNING - LOOKING AWAY,pose_side,False,True,15.8,14.8,,,,True,False,75.7,side
+1770539157.569,277,WARNING - LOOKING AWAY,pose_side,False,True,15.9,14.9,,,,True,False,75.6,side
+1770539157.747,278,WARNING - LOOKING AWAY,pose_side,False,True,16.1,15.0,,,,True,False,75.6,side
+1770539157.914,279,WARNING - LOOKING AWAY,pose_side,False,True,16.2,15.1,,,,True,False,75.5,side
+1770539158.068,280,WARNING - LOOKING AWAY,pose_side,False,True,16.4,15.2,,,,True,False,75.5,side
+1770539158.236,281,WARNING - LOOKING AWAY,pose_side,False,True,16.5,15.2,,,,True,False,75.4,side
+1770539158.401,282,WARNING - LOOKING AWAY,pose_side,False,True,16.6,15.3,,,,True,False,75.4,side
+1770539158.576,283,WARNING - LOOKING AWAY,pose_side,False,True,16.7,15.3,,,,True,False,75.3,side
+1770539158.741,284,WARNING - LOOKING AWAY,pose_side,False,True,16.7,15.4,,,,True,False,75.3,side
+1770539159.016,285,WARNING - LOOKING AWAY,pose_side,False,True,16.8,15.4,,,,True,False,75.2,side
+1770539159.180,286,WARNING - LOOKING AWAY,pose_side,False,True,16.8,15.4,,,,True,False,75.2,side
+1770539159.338,287,WARNING - LOOKING AWAY,pose_side,False,True,16.9,15.4,,,,True,False,75.1,side
+1770539159.504,288,WARNING - LOOKING AWAY,pose_side,False,True,16.9,15.5,,,,True,False,75.1,side
+1770539159.673,289,WARNING - LOOKING AWAY,pose_side,False,True,17.0,15.5,,,,True,False,75.0,side
+1770539159.839,290,WARNING - LOOKING AWAY,pose_side,False,True,17.0,15.6,,,,True,False,75.0,side
+1770539160.011,291,WARNING - LOOKING AWAY,pose_side,False,True,17.1,15.6,,,,True,False,74.9,side
+1770539160.170,292,WARNING - LOOKING AWAY,pose_side,False,True,17.2,15.6,,,,True,False,74.9,side
+1770539160.336,293,WARNING - LOOKING AWAY,pose_side,False,True,17.2,15.7,,,,True,False,74.8,side
+1770539160.503,294,WARNING - LOOKING AWAY,pose_side,False,True,17.2,15.7,,,,True,False,74.8,side
+1770539160.708,295,WARNING - LOOKING AWAY,pose_side,False,True,17.3,15.8,19.5,215.7,False,True,False,74.8,side
+1770539160.876,296,WARNING - LOOKING AWAY,pose_side,False,True,17.3,15.8,,,,True,False,74.7,side
+1770539161.038,297,WARNING - LOOKING AWAY,pose_side,False,True,17.4,15.8,,,,True,False,74.7,side
+1770539161.203,298,WARNING - LOOKING AWAY,pose_side,False,True,17.4,15.8,,,,True,False,74.6,side
+1770539161.369,299,WARNING - LOOKING AWAY,pose_side,False,True,17.4,15.9,,,,True,False,74.6,side
+1770539161.537,300,WARNING - LOOKING AWAY,pose_side,False,True,17.4,15.9,,,,True,False,74.5,side
+1770539161.715,301,WARNING - LOOKING AWAY,pose_side,False,True,17.4,15.9,,,,True,False,74.5,side
+1770539161.882,302,WARNING - LOOKING AWAY,pose_side,False,True,17.4,15.9,,,,True,False,74.5,side
+1770539162.046,303,WARNING - LOOKING AWAY,pose_side,False,True,17.4,16.0,,,,True,False,74.4,side
+1770539162.214,304,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.0,,,,True,False,74.4,side
+1770539162.369,305,WARNING - LOOKING AWAY,pose_side,False,True,17.4,16.0,,,,True,False,74.3,side
+1770539162.537,306,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.0,,,,True,False,74.3,side
+1770539162.708,307,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.1,,,,True,False,74.3,side
+1770539162.868,308,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.1,,,,True,False,74.2,side
+1770539163.034,309,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.1,,,,True,False,74.2,side
+1770539163.204,310,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.1,,,,True,False,74.1,side
+1770539163.375,311,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.1,,,,True,False,74.1,side
+1770539163.538,312,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.1,,,,True,False,74.1,side
+1770539163.714,313,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.1,,,,True,False,74.0,side
+1770539163.888,314,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.2,,,,True,False,74.0,side
+1770539164.084,315,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.2,,,,True,False,74.0,side
+1770539164.249,316,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.2,,,,True,False,73.9,side
+1770539164.415,317,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.2,,,,True,False,73.9,side
+1770539164.581,318,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.3,,,,True,False,73.9,side
+1770539164.736,319,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.3,,,,True,False,73.8,side
+1770539164.934,320,WARNING - LOOKING AWAY,pose_side,False,True,17.5,16.3,23.3,191.3,False,True,False,73.8,side
+1770539165.119,321,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.3,,,,True,False,73.7,side
+1770539165.316,322,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.3,,,,True,False,73.7,side
+1770539165.480,323,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.4,,,,True,False,73.7,side
+1770539165.639,324,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.4,,,,True,False,73.6,side
+1770539165.814,325,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.4,,,,True,False,73.6,side
+1770539165.984,326,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.4,22.3,438.8,False,True,False,73.6,side
+1770539166.134,327,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.5,,,,True,False,73.5,side
+1770539166.306,328,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.5,21.1,208.7,False,True,False,73.5,side
+1770539166.468,329,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.5,,,,True,False,73.5,side
+1770539166.639,330,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.5,,,,True,False,73.4,side
+1770539166.811,331,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.5,,,,True,False,73.4,side
+1770539166.971,332,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,,,,True,False,73.4,side
+1770539167.137,333,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,,,,True,False,73.4,side
+1770539167.304,334,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,,,,True,False,73.3,side
+1770539167.470,335,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,,,,True,False,73.3,side
+1770539167.637,336,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,,,,True,False,73.3,side
+1770539167.818,337,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,23.2,244.9,False,True,False,73.2,side
+1770539167.979,338,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,,,,True,False,73.2,side
+1770539168.147,339,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,,,,True,False,73.2,side
+1770539168.316,340,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.6,,,,True,False,73.1,side
+1770539168.474,341,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.6,,,,True,False,73.1,side
+1770539168.638,342,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.6,,,,True,False,73.1,side
+1770539168.804,343,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.6,,,,True,False,73.0,side
+1770539168.971,344,WARNING - LOOKING AWAY,pose_side,False,True,17.6,16.6,,,,True,False,73.0,side
+1770539169.140,345,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.7,,,,True,False,73.0,side
+1770539169.303,346,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.7,,,,True,False,73.0,side
+1770539169.476,347,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.7,,,,True,False,72.9,side
+1770539169.645,348,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.7,,,,True,False,72.9,side
+1770539169.818,349,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.7,,,,True,False,72.9,side
+1770539169.981,350,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.8,,,,True,False,72.8,side
+1770539170.140,351,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.8,,,,True,False,72.8,side
+1770539170.302,352,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.8,,,,True,False,72.8,side
+1770539170.471,353,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.8,,,,True,False,72.8,side
+1770539170.637,354,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.8,,,,True,False,72.7,side
+1770539170.814,355,WARNING - LOOKING AWAY,pose_side,False,True,17.8,16.8,,,,True,False,72.7,side
+1770539170.970,356,WARNING - LOOKING AWAY,pose_side,False,True,17.8,16.9,,,,True,False,72.7,side
+1770539171.136,357,WARNING - LOOKING AWAY,pose_side,False,True,17.8,16.9,,,,True,False,72.7,side
+1770539171.304,358,WARNING - LOOKING AWAY,pose_side,False,True,17.8,16.9,,,,True,False,72.6,side
+1770539171.471,359,WARNING - LOOKING AWAY,pose_side,False,True,17.8,16.9,,,,True,False,72.6,side
+1770539171.640,360,WARNING - LOOKING AWAY,pose_side,False,True,17.8,16.9,23.4,677.2,False,True,False,72.6,side
+1770539171.807,361,WARNING - LOOKING AWAY,pose_side,False,True,17.9,17.0,,,,True,False,72.6,side
+1770539171.981,362,WARNING - LOOKING AWAY,pose_side,False,True,17.8,17.0,,,,True,False,72.5,side
+1770539172.152,363,WARNING - LOOKING AWAY,pose_side,False,True,17.9,17.0,,,,True,False,72.5,side
+1770539172.312,364,WARNING - LOOKING AWAY,pose_side,False,True,17.9,17.0,,,,True,False,72.5,side
+1770539172.471,365,WARNING - LOOKING AWAY,pose_side,False,True,17.9,17.0,,,,True,False,72.4,side
+1770539172.636,366,WARNING - LOOKING AWAY,pose_side,False,True,17.8,17.0,,,,True,False,72.4,side
+1770539172.806,367,WARNING - LOOKING AWAY,pose_side,False,True,17.7,16.9,19.7,23.2,True,True,False,72.4,side
+1770539172.971,368,WARNING - LOOKING AWAY,pose_side,False,True,17.4,16.6,18.5,19.0,True,True,False,72.4,side
+1770539173.138,369,WARNING - LOOKING AWAY,pose_side,False,True,17.0,16.2,17.0,15.8,True,True,False,72.3,side
+1770539173.305,370,WARNING - LOOKING AWAY,pose_side,False,True,16.5,15.7,16.1,13.6,True,True,False,72.3,side
+1770539173.470,371,WARNING - LOOKING AWAY,side_face_override,False,True,16.0,15.1,15.4,12.1,True,True,False,72.3,side
+1770539173.637,372,WARNING - LOOKING AWAY,side_face_override,False,True,15.4,14.5,14.9,11.3,False,True,False,72.3,side
+1770539173.814,373,WARNING - LOOKING AWAY,side_face_override,False,True,14.7,13.7,14.6,10.1,False,True,False,72.3,side
+1770539173.989,374,WARNING - LOOKING AWAY,side_face_override,False,True,14.0,12.8,14.1,8.6,False,True,False,72.2,side
+1770539174.179,375,WARNING - LOOKING AWAY,side_face_override,False,True,12.6,11.4,13.3,7.0,False,True,False,72.2,side
+1770539174.349,376,WARNING - LOOKING AWAY,side_face_override,False,True,11.1,9.8,13.3,5.3,False,True,False,72.2,side
+1770539174.516,377,WARNING - LOOKING AWAY,side_face_override,False,True,9.5,8.1,13.6,5.1,False,True,False,72.2,side
+1770539174.681,378,WARNING - LOOKING AWAY,side_face_override,False,True,8.3,6.8,14.1,5.1,False,True,False,72.1,side
+1770539174.841,379,WARNING - LOOKING AWAY,side_face_override,False,True,7.7,6.1,15.1,4.5,True,True,False,72.1,side
+1770539175.005,380,WARNING - LOOKING AWAY,side_face_override,False,True,7.6,5.9,15.3,4.6,True,True,False,72.1,side
+1770539175.172,381,WARNING - LOOKING AWAY,side_face_override,False,True,7.8,6.1,15.3,4.9,True,True,False,72.1,side
+1770539175.339,382,WARNING - LOOKING AWAY,side_face_override,False,True,8.4,6.7,16.8,6.2,True,True,False,72.0,side
+1770539175.504,383,WARNING - LOOKING AWAY,side_face_override,False,True,8.9,7.4,18.1,8.0,True,True,False,72.0,side
+1770539175.674,384,WARNING - LOOKING AWAY,side_face_override,False,True,9.4,8.0,18.9,11.8,True,True,False,72.0,side
+1770539175.848,385,WARNING - LOOKING AWAY,side_face_override,False,True,10.3,9.0,19.8,5.4,True,True,False,72.0,side
+1770539176.016,386,WARNING - LOOKING AWAY,side_face_override,False,True,11.8,10.9,20.3,-0.7,True,True,False,72.0,side
+1770539176.172,387,WARNING - LOOKING AWAY,side_face_override,False,True,13.8,13.3,20.7,-2.0,True,True,False,71.9,side
+1770539176.338,388,WARNING - LOOKING AWAY,side_face_override,False,True,15.5,15.5,21.4,-0.7,True,True,False,71.9,side
+1770539176.514,389,WARNING - LOOKING AWAY,side_face_override,False,True,16.8,17.3,21.8,0.8,True,True,False,71.9,side
+1770539176.747,390,WARNING - LOOKING AWAY,side_face_override,False,True,17.3,18.5,22.0,2.1,True,False,False,71.8,side
+1770539176.909,391,WARNING - LOOKING AWAY,side_face_override,False,True,18.5,20.0,21.9,2.9,True,False,False,71.6,side
+1770539177.073,392,WARNING - LOOKING AWAY,side_face_override,False,True,19.6,21.4,22.0,3.4,True,False,False,71.5,side
+1770539177.239,393,WARNING - LOOKING AWAY,side_face_override,False,True,20.5,22.5,22.0,3.8,True,False,False,71.4,side
+1770539177.405,394,WARNING - LOOKING AWAY,side_face_override,False,True,21.3,23.6,22.0,4.0,True,False,False,71.2,side
+1770539177.572,395,WARNING - LOOKING AWAY,side_face_override,False,True,21.9,24.4,22.0,4.0,True,False,False,71.1,side
+1770539177.738,396,WARNING - SLOUCHING,side_face_override,False,True,22.5,25.2,22.0,4.2,True,False,False,71.0,side
+1770539177.904,397,WARNING - SLOUCHING,side_face_override,False,True,23.0,25.8,22.8,5.4,True,False,False,70.9,side
+1770539178.078,398,CALIBRATING,side_face_override,False,True,24.4,27.3,26.1,6.9,True,False,False,0.0,side
+1770539178.260,399,CALIBRATING,pose_side,False,True,26.0,29.0,,,,False,False,0.0,side
+1770539178.445,400,CALIBRATING,pose_side,False,True,28.0,31.1,,,,False,False,0.0,side
+1770539178.606,401,CALIBRATING,pose_side,False,True,30.0,33.3,,,,False,False,0.0,side
+1770539178.778,402,CALIBRATING,pose_side,False,True,31.8,35.1,,,,False,False,0.0,side
+1770539178.944,403,CALIBRATING,pose_side,False,True,33.2,36.6,,,,False,False,0.0,side
+1770539179.105,404,CALIBRATING,pose_side,True,True,33.9,37.7,,,,False,False,0.0,side
+1770539179.272,405,CALIBRATING,pose_side,True,True,34.8,38.6,,,,False,False,0.0,side
+1770539179.439,406,CALIBRATING,pose_side,True,True,35.5,39.4,,,,False,False,0.0,side
+1770539179.606,407,CALIBRATING,pose_side,True,True,36.0,40.0,,,,False,False,0.0,side
+1770539179.784,408,CALIBRATING,pose_side,True,True,36.3,40.4,,,,False,False,0.0,side
+1770539179.955,409,CALIBRATING,pose_side,True,True,36.6,40.8,,,,False,False,0.0,side
+1770539180.110,410,CALIBRATING,pose_side,True,True,36.8,41.1,,,,False,False,0.0,side
+1770539180.272,411,WAITING,pose_side,True,True,37.0,41.4,,,,False,False,0.0,side
+1770539180.439,412,WAITING,pose_side,True,True,37.0,41.5,,,,False,False,0.0,side
+1770539180.604,413,WAITING,pose_side,True,True,37.1,41.6,,,,False,False,0.0,side
+1770539180.771,414,WAITING,pose_side,True,True,36.9,41.4,,,,False,False,0.0,side
+1770539180.941,415,WAITING,pose_side,True,True,36.5,41.1,29.2,-4.5,True,False,False,0.0,side
+1770539181.105,416,WAITING,pose_side,True,True,35.6,40.3,27.8,-3.3,True,False,False,0.0,side
+1770539181.272,417,WAITING,pose_side,True,True,34.8,39.6,26.1,-1.7,True,False,False,0.0,side
+1770539181.439,418,WAITING,pose_side,True,True,33.8,38.7,25.0,-0.6,True,False,False,0.0,side
+1770539181.605,419,WAITING,side_face_override,False,True,33.0,38.0,24.2,0.3,True,False,False,0.0,side
+1770539181.788,420,WAITING,side_face_override,False,True,32.4,37.3,23.6,0.8,True,False,False,0.0,side
+1770539181.949,421,WAITING,side_face_override,False,True,31.5,36.5,23.2,1.3,True,False,False,0.0,side
+1770539182.117,422,WAITING,side_face_override,False,True,30.8,35.9,22.4,2.0,True,False,False,0.0,side
+1770539182.275,423,WAITING,side_face_override,False,True,30.2,35.2,21.8,2.4,True,False,False,0.0,side
+1770539182.439,424,WAITING,side_face_override,False,True,29.6,34.6,21.8,2.4,True,False,False,0.0,side
+1770539182.606,425,WAITING,side_face_override,False,True,29.2,34.2,21.9,2.2,True,False,False,0.0,side
+1770539182.780,426,WAITING,side_face_override,False,True,28.7,33.7,22.0,2.1,True,False,False,0.0,side
+1770539182.950,427,WAITING,side_face_override,False,True,28.3,33.3,22.1,2.1,True,False,False,0.0,side
+1770539183.113,428,WAITING,side_face_override,False,True,27.7,32.8,22.0,2.1,True,False,False,0.0,side
+1770539183.283,429,WAITING,side_face_override,False,True,27.4,32.5,22.0,2.2,True,False,False,0.0,side
+1770539183.440,430,WAITING,side_face_override,False,True,27.1,32.2,22.0,2.3,True,False,False,0.0,side
+1770539183.605,431,WAITING,side_face_override,False,True,26.7,31.9,22.0,2.5,True,False,False,0.0,side
+1770539183.785,432,WAITING,side_face_override,False,True,26.3,31.5,22.0,2.5,True,False,False,0.0,side
+1770539183.949,433,WAITING,side_face_override,False,True,26.0,31.2,21.9,2.8,True,False,False,0.0,side
+1770539184.106,434,WAITING,side_face_override,False,True,25.8,31.0,21.7,3.3,True,False,False,0.0,side
+1770539184.273,435,WAITING,side_face_override,False,True,25.5,30.6,20.6,4.2,True,False,False,0.0,side
+1770539184.440,436,WAITING,side_face_override,False,True,25.1,30.2,20.7,4.6,True,False,False,0.0,side
+1770539184.606,437,WAITING,side_face_override,False,True,24.9,30.0,22.2,7.0,True,False,False,0.0,side
+1770539184.768,438,WAITING,pose_side,False,True,24.5,29.7,,,,False,False,0.0,side
+1770539184.941,439,WAITING,pose_side,False,True,24.1,29.4,,,,False,False,0.0,side
+1770539185.107,440,WAITING,pose_side,False,True,24.0,29.2,,,,False,False,0.0,side
+1770539185.272,441,WAITING,pose_side,False,True,23.8,28.9,,,,False,False,0.0,side
+1770539185.442,442,WAITING,pose_side,False,True,23.5,28.5,20.5,22.6,True,False,False,0.0,side
+1770539185.606,443,WAITING,pose_side,True,True,23.2,28.2,19.6,17.6,True,False,False,0.0,side
+1770539185.774,444,WAITING,pose_side,True,True,23.0,27.9,18.9,15.0,True,False,False,0.0,side
+1770539185.939,445,WAITING,pose_side,True,True,22.8,27.8,18.3,13.4,True,False,False,0.0,side
+1770539186.114,446,WAITING,side_face_override,False,True,22.7,27.6,18.0,12.5,True,False,False,0.0,side
+1770539186.280,447,WAITING,side_face_override,False,True,22.6,27.4,17.7,11.9,True,False,False,0.0,side
+1770539186.456,448,WAITING,side_face_override,False,True,22.5,27.3,17.6,11.7,True,False,False,0.0,side
+1770539186.609,449,WAITING,side_face_override,False,True,22.3,27.1,17.4,11.6,True,False,False,0.0,side
+1770539186.773,450,WAITING,side_face_override,False,True,22.2,26.9,17.2,11.6,True,False,False,0.0,side
+1770539186.946,451,WAITING,side_face_override,False,True,22.1,26.8,17.1,11.6,True,False,False,0.0,side
+1770539187.120,452,WAITING,side_face_override,False,True,22.0,26.7,17.1,11.5,True,False,False,0.0,side
+1770539187.283,453,WAITING,side_face_override,False,True,21.9,26.6,17.0,11.5,True,False,False,0.0,side
+1770539187.454,454,WAITING,side_face_override,False,True,21.5,26.2,16.2,12.0,True,False,False,0.0,side
+1770539187.618,455,WAITING,side_face_override,False,True,21.0,25.6,15.5,12.0,True,False,False,0.0,side
+1770539187.782,456,WAITING,side_face_override,False,True,20.2,24.7,14.6,12.9,False,False,False,0.0,side
+1770539187.951,457,WAITING,side_face_override,False,True,19.2,23.8,14.0,14.1,False,False,False,0.0,side
+1770539188.115,458,WAITING,side_face_override,False,True,18.0,22.5,14.0,14.9,False,False,False,0.0,side
+1770539188.284,459,WAITING,side_face_override,False,True,16.4,20.8,13.9,15.2,False,False,False,0.0,side
+1770539188.450,460,WAITING,side_face_override,False,True,14.2,18.5,14.2,15.5,False,False,False,0.0,side
+1770539188.607,461,WAITING,side_face_override,False,True,12.2,16.5,14.2,15.2,False,True,False,0.0,side
+1770539188.774,462,WAITING,side_face_override,False,True,10.6,14.8,14.7,15.3,False,True,False,0.0,side
+1770539188.940,463,WAITING,side_face_override,False,True,9.3,13.4,15.0,14.9,True,True,False,0.0,side
+1770539189.106,464,WAITING,side_face_override,False,True,8.2,12.2,15.1,16.4,True,True,False,0.0,side
+1770539189.273,465,WAITING,side_face_override,False,True,7.8,11.6,16.8,22.9,True,True,False,0.0,side
+1770539189.438,466,WAITING,pose_side,False,True,7.6,11.3,,,,True,False,0.0,side
+1770539189.607,467,WAITING,pose_side,False,True,7.6,11.1,,,,True,False,0.0,side
+1770539189.773,468,WAITING,pose_side,False,True,7.4,10.8,,,,True,False,0.0,side
+1770539189.942,469,WAITING,pose_side,False,True,7.5,10.8,,,,True,False,0.0,side
+1770539190.113,470,WAITING,pose_side,False,True,7.4,10.6,,,,True,False,0.0,side
+1770539190.278,471,CALIBRATING,pose_side,False,True,7.4,10.5,,,,True,False,0.0,side
+1770539190.439,472,CALIBRATING,pose_side,False,True,7.5,10.5,,,,True,False,0.0,side
+1770539190.607,473,CALIBRATING,pose_side,False,True,7.6,10.4,,,,True,False,0.0,side
+1770539190.773,474,CALIBRATING,pose_side,False,True,7.7,10.4,,,,True,False,0.0,side
+1770539190.940,475,CALIBRATING,pose_side,False,True,7.8,10.5,,,,True,False,0.0,side
+1770539191.120,476,CALIBRATING,pose_side,False,True,8.0,10.5,,,,True,False,0.0,side
+1770539191.271,477,CALIBRATING,pose_side,False,True,8.0,10.5,,,,True,False,0.0,side
+1770539191.445,478,CALIBRATING,pose_side,False,True,8.0,10.4,,,,True,False,0.0,side
+1770539191.622,479,CALIBRATING,pose_side,False,True,8.1,10.5,,,,True,False,0.0,side
+1770539191.781,480,CALIBRATING,pose_side,False,True,8.2,10.5,,,,True,False,0.0,side
+1770539191.940,481,CALIBRATING,pose_side,False,True,8.2,10.5,,,,True,False,0.0,side
+1770539192.114,482,CALIBRATING,pose_side,False,True,8.3,10.5,,,,True,False,0.0,side
+1770539192.278,483,CALIBRATING,pose_side,False,True,8.3,10.5,,,,True,False,0.0,side
+1770539192.447,484,CALIBRATING,pose_side,False,True,8.1,10.2,17.1,15.4,True,True,False,0.0,side
+1770539192.609,485,CALIBRATING,pose_side,False,True,7.9,9.9,16.7,15.1,True,True,False,0.0,side
+1770539192.775,486,CALIBRATING,pose_side,False,True,7.6,9.6,16.5,14.4,True,True,False,0.0,side
+1770539192.940,487,CALIBRATING,pose_side,False,True,7.2,9.3,16.3,13.9,True,True,False,0.0,side
+1770539193.107,488,CALIBRATING,side_face_override,False,True,7.0,9.0,16.2,13.5,True,True,False,0.0,side
+1770539193.273,489,CALIBRATING,side_face_override,False,True,6.8,8.7,16.1,13.2,True,True,False,0.0,side
+1770539193.450,490,CALIBRATING,side_face_override,False,True,6.6,8.6,16.0,13.2,True,True,False,0.0,side
+1770539193.607,491,CALIBRATING,side_face_override,False,True,6.5,8.4,16.0,13.2,True,True,False,0.0,side
+1770539193.775,492,CALIBRATING,side_face_override,False,True,6.3,8.3,15.9,13.2,True,True,False,0.0,side
+1770539193.940,493,CALIBRATING,side_face_override,False,True,6.2,8.1,15.9,13.2,True,True,False,0.0,side
+1770539194.112,494,CALIBRATING,side_face_override,False,True,6.1,8.0,15.9,13.3,True,True,False,0.0,side
+1770539194.287,495,CALIBRATING,side_face_override,False,True,6.1,8.0,15.8,13.3,True,True,False,0.0,side
+1770539194.457,496,CALIBRATING,side_face_override,False,True,6.0,7.9,15.8,13.3,True,True,False,0.0,side
+1770539194.610,497,CALIBRATING,side_face_override,False,True,6.0,7.8,15.8,13.4,True,True,False,0.0,side
+1770539194.772,498,CALIBRATING,side_face_override,False,True,6.0,7.8,15.8,13.4,True,True,False,0.0,side
+1770539194.942,499,CALIBRATING,side_face_override,False,True,6.0,7.8,15.8,13.5,True,True,False,0.0,side
+1770539195.119,500,CALIBRATING,side_face_override,False,True,6.1,7.8,15.8,13.5,True,True,False,0.0,side
+1770539195.277,501,CALIBRATING,side_face_override,False,True,6.1,7.9,15.9,13.4,True,True,False,0.0,side
+1770539195.503,502,CALIBRATING,side_face_override,False,True,6.3,8.0,18.1,16.2,True,True,False,0.0,side
+1770539195.690,503,CALIBRATING,pose_side,False,True,6.3,8.1,,,,True,False,0.0,side
+1770539195.860,504,CALIBRATING,pose_side,False,True,6.6,8.3,,,,True,False,0.0,side
+1770539196.070,505,CALIBRATING,pose_side,False,True,6.8,8.5,,,,True,False,0.0,side
+1770539196.286,506,CALIBRATING,pose_side,False,True,7.0,8.7,,,,True,False,0.0,side
+1770539196.462,507,CALIBRATING,pose_side,False,True,7.2,8.9,,,,True,False,0.0,side
+1770539196.641,508,CALIBRATING,pose_side,False,True,7.4,9.0,,,,True,False,0.0,side
+1770539196.810,509,CALIBRATING,pose_side,False,True,7.5,9.2,,,,True,False,0.0,side
+1770539196.972,510,CALIBRATING,pose_side,False,True,7.7,9.3,,,,True,False,0.0,side
+1770539197.139,511,CALIBRATING,pose_side,False,True,7.9,9.5,,,,True,False,0.0,side
+1770539197.307,512,CALIBRATING,pose_side,False,True,8.0,9.6,,,,True,False,0.0,side
+1770539197.475,513,CALIBRATING,pose_side,False,True,8.2,9.8,,,,True,False,0.0,side
+1770539197.641,514,CALIBRATING,pose_side,False,True,8.3,9.9,,,,True,False,0.0,side
+1770539197.805,515,CALIBRATING,pose_side,False,True,8.4,10.0,,,,True,False,0.0,side
+1770539197.975,516,CALIBRATING,pose_side,False,True,8.6,10.2,,,,True,False,0.0,side
+1770539198.142,517,CALIBRATING,pose_side,False,True,8.7,10.4,,,,True,False,0.0,side
+1770539198.308,518,CALIBRATING,pose_side,False,True,8.9,10.5,,,,True,False,0.0,side
+1770539198.477,519,CALIBRATING,pose_side,False,True,9.0,10.6,,,,True,False,0.0,side
+1770539198.650,520,CALIBRATING,pose_side,False,True,9.1,10.7,,,,True,False,0.0,side
+1770539198.816,521,CALIBRATING,pose_side,False,True,9.2,10.8,,,,True,False,0.0,side
+1770539198.974,522,CALIBRATING,pose_side,False,True,9.3,10.9,,,,True,False,0.0,side
+1770539199.149,523,CALIBRATING,pose_side,False,True,9.4,11.0,,,,True,False,0.0,side
+1770539199.313,524,CALIBRATING,pose_side,False,True,9.5,11.1,,,,True,False,0.0,side
+1770539199.472,525,CALIBRATING,pose_side,False,True,9.6,11.2,,,,True,False,0.0,side
+1770539199.640,526,CALIBRATING,pose_side,False,True,9.6,11.2,,,,True,False,0.0,side
+1770539199.808,527,CALIBRATING,pose_side,False,True,9.7,11.3,,,,True,False,0.0,side
+1770539199.980,528,CALIBRATING,pose_side,False,True,9.8,11.4,,,,True,False,0.0,side
+1770539200.153,529,CALIBRATING,pose_side,False,True,9.8,11.4,,,,True,False,0.0,side
+1770539200.318,530,WARNING - SLOUCHING,pose_side,False,True,9.9,11.5,,,,True,False,70.9,side
+1770539200.484,531,WARNING - SLOUCHING,pose_side,False,True,10.0,11.6,,,,True,False,70.8,side
+1770539200.652,532,WARNING - SLOUCHING,pose_side,False,True,10.0,11.6,,,,True,False,70.8,side
+1770539200.812,533,WARNING - LOOKING AWAY,pose_side,False,True,10.1,11.7,,,,True,False,70.8,side
+1770539200.974,534,WARNING - LOOKING AWAY,pose_side,False,True,10.2,11.8,,,,True,False,70.8,side
+1770539201.139,535,WARNING - LOOKING AWAY,pose_side,False,True,10.3,11.9,,,,True,False,70.8,side
+1770539201.307,536,WARNING - LOOKING AWAY,pose_side,False,True,10.4,12.0,,,,True,False,70.7,side
+1770539201.475,537,WARNING - LOOKING AWAY,pose_side,False,True,10.5,12.1,,,,True,False,70.7,side
+1770539201.645,538,WARNING - LOOKING AWAY,pose_side,False,True,10.6,12.2,,,,True,False,70.7,side
+1770539201.810,539,WARNING - LOOKING AWAY,pose_side,False,True,10.8,12.4,,,,True,False,70.7,side
+1770539201.972,540,WARNING - LOOKING AWAY,pose_side,False,True,10.9,12.5,,,,True,False,70.7,side
+1770539202.142,541,WARNING - LOOKING AWAY,pose_side,False,True,11.0,12.6,22.5,18.2,True,True,False,70.7,side
+1770539202.305,542,WARNING - LOOKING AWAY,pose_side,False,True,11.1,12.7,,,,True,False,70.6,side
+1770539202.477,543,WARNING - LOOKING AWAY,pose_side,False,True,11.2,12.8,,,,True,False,70.6,side
+1770539202.654,544,WARNING - LOOKING AWAY,pose_side,False,True,11.3,12.9,,,,True,False,70.6,side
+1770539202.810,545,WARNING - LOOKING AWAY,pose_side,False,True,11.4,13.0,,,,True,False,70.6,side
+1770539202.979,546,WARNING - LOOKING AWAY,pose_side,False,True,11.4,13.1,,,,True,False,70.6,side
+1770539203.144,547,WARNING - LOOKING AWAY,pose_side,False,True,11.5,13.2,,,,True,False,70.6,side
+1770539203.331,548,WARNING - LOOKING AWAY,pose_side,False,True,11.6,13.3,,,,True,False,70.5,side
+1770539203.515,549,WARNING - LOOKING AWAY,pose_side,False,True,11.7,13.3,,,,True,False,70.5,side
+1770539203.677,550,WARNING - LOOKING AWAY,pose_side,False,True,11.7,13.4,,,,True,False,70.5,side
+1770539203.843,551,WARNING - LOOKING AWAY,pose_side,False,True,11.8,13.5,,,,True,False,70.5,side
+1770539204.010,552,WARNING - LOOKING AWAY,pose_side,False,True,11.9,13.5,,,,True,False,70.5,side
+1770539204.186,553,WARNING - LOOKING AWAY,pose_side,False,True,11.9,13.6,,,,True,False,70.5,side
+1770539204.350,554,WARNING - LOOKING AWAY,pose_side,False,True,12.0,13.6,,,,True,False,70.5,side
+1770539204.523,555,WARNING - LOOKING AWAY,pose_side,False,True,12.0,13.7,,,,True,False,70.4,side
+1770539204.683,556,WARNING - LOOKING AWAY,pose_side,False,True,12.1,13.7,,,,True,False,70.4,side
+1770539204.844,557,WARNING - LOOKING AWAY,pose_side,False,True,12.1,13.8,,,,True,False,70.4,side
+1770539205.010,558,WARNING - LOOKING AWAY,pose_side,False,True,12.1,13.8,,,,True,False,70.4,side
+1770539205.177,559,WARNING - LOOKING AWAY,pose_side,False,True,12.2,13.8,,,,True,False,70.4,side
+1770539205.349,560,WARNING - LOOKING AWAY,pose_side,False,True,12.2,13.9,,,,True,False,70.4,side
+1770539205.509,561,WARNING - LOOKING AWAY,pose_side,False,True,12.3,13.9,,,,True,False,70.3,side
+1770539205.676,562,WARNING - LOOKING AWAY,pose_side,False,True,12.3,14.0,,,,True,False,70.3,side
+1770539205.843,563,WARNING - LOOKING AWAY,pose_side,False,True,12.3,14.0,,,,True,False,70.3,side
+1770539206.009,564,WARNING - LOOKING AWAY,pose_side,False,True,12.4,14.0,,,,True,False,70.3,side
+1770539206.174,565,WARNING - LOOKING AWAY,pose_side,False,True,12.4,14.1,,,,True,False,70.3,side
+1770539206.341,566,WARNING - LOOKING AWAY,pose_side,False,True,12.4,14.1,,,,True,False,70.3,side
+1770539206.515,567,WARNING - LOOKING AWAY,pose_side,False,True,12.4,14.1,,,,True,False,70.3,side
+1770539206.687,568,WARNING - LOOKING AWAY,pose_side,False,True,12.5,14.1,,,,True,False,70.2,side
+1770539206.844,569,WARNING - LOOKING AWAY,pose_side,False,True,12.5,14.2,,,,True,False,70.2,side
+1770539207.007,570,WARNING - LOOKING AWAY,pose_side,False,True,12.5,14.2,,,,True,False,70.2,side
+1770539207.175,571,WARNING - LOOKING AWAY,pose_side,False,True,12.5,14.2,,,,True,False,70.2,side
+1770539207.343,572,WARNING - LOOKING AWAY,pose_side,False,True,12.6,14.3,,,,True,False,70.2,side
+1770539207.509,573,WARNING - LOOKING AWAY,pose_side,False,True,12.6,14.3,,,,True,False,70.2,side
+1770539207.677,574,WARNING - LOOKING AWAY,pose_side,False,True,12.6,14.3,,,,True,False,70.2,side
+1770539207.841,575,WARNING - LOOKING AWAY,pose_side,False,True,12.7,14.4,,,,True,False,70.1,side
+1770539208.009,576,WARNING - LOOKING AWAY,pose_side,False,True,12.7,14.4,,,,True,False,70.1,side
+1770539208.175,577,WARNING - LOOKING AWAY,pose_side,False,True,12.7,14.4,,,,True,False,70.1,side
+1770539208.341,578,WARNING - LOOKING AWAY,pose_side,False,True,12.7,14.5,,,,True,False,70.1,side
+1770539208.531,579,WARNING - LOOKING AWAY,pose_side,False,True,12.8,14.5,,,,True,False,70.1,side
+1770539208.722,580,WARNING - LOOKING AWAY,pose_side,False,True,12.7,14.5,,,,True,False,70.1,side
+1770539208.891,581,WARNING - LOOKING AWAY,pose_side,False,True,12.8,14.5,,,,True,False,70.1,side
+1770539209.047,582,WARNING - LOOKING AWAY,pose_side,False,True,12.8,14.5,,,,True,False,70.1,side
+1770539209.212,583,WARNING - LOOKING AWAY,pose_side,False,True,12.8,14.6,21.5,19.1,True,True,False,70.0,side
+1770539209.378,584,WARNING - LOOKING AWAY,pose_side,False,True,12.8,14.5,20.6,14.9,True,True,False,70.0,side
+1770539209.545,585,WARNING - LOOKING AWAY,pose_side,False,True,12.7,14.5,19.7,11.4,True,True,False,70.0,side
+1770539209.712,586,WARNING - LOOKING AWAY,pose_side,False,True,12.6,14.4,19.2,9.9,True,True,False,70.0,side
+1770539209.877,587,WARNING - LOOKING AWAY,side_face_override,False,True,12.5,14.3,18.9,9.1,True,True,False,70.0,side
+1770539210.043,588,WARNING - LOOKING AWAY,side_face_override,False,True,12.5,14.2,18.8,9.3,True,True,False,70.0,side
+1770539210.257,589,WARNING - LOOKING AWAY,side_face_override,False,True,12.4,14.2,18.5,9.6,True,True,False,70.0,side
+1770539210.421,590,WARNING - LOOKING AWAY,side_face_override,False,True,12.4,14.1,18.6,9.9,True,True,False,69.9,side
+1770539210.589,591,WARNING - LOOKING AWAY,side_face_override,False,True,12.4,14.1,18.8,10.2,True,True,False,69.9,side
+1770539210.753,592,WARNING - LOOKING AWAY,pose_side,False,True,12.4,14.2,,,,True,False,69.9,side
+1770539210.915,593,WARNING - LOOKING AWAY,pose_side,False,True,12.4,14.2,,,,True,False,69.9,side
+1770539211.076,594,WARNING - LOOKING AWAY,pose_side,False,True,12.4,14.2,,,,True,False,69.9,side
+1770539211.249,595,WARNING - LOOKING AWAY,pose_side,False,True,12.1,13.9,17.8,38.5,False,True,False,69.9,side
+1770539211.410,596,WARNING - LOOKING AWAY,pose_side,False,True,10.8,12.4,15.8,15.3,True,True,False,69.9,side
+1770539211.576,597,WARNING - LOOKING AWAY,pose_side,False,True,9.1,10.3,15.2,9.7,True,True,False,69.9,side
+1770539211.743,598,WARNING - LOOKING AWAY,pose_side,False,True,7.2,8.0,14.6,10.6,False,True,False,69.8,side
+1770539211.910,599,WARNING - LOOKING AWAY,side_face_override,False,True,5.3,5.8,14.9,13.0,False,True,False,69.8,side
+1770539212.076,600,WARNING - LOOKING AWAY,side_face_override,False,True,4.3,4.3,14.7,13.8,False,True,False,69.8,side
+1770539212.243,601,WARNING - LOOKING AWAY,side_face_override,False,True,3.4,3.1,14.5,12.7,False,True,False,69.8,side
+1770539212.412,602,WARNING - LOOKING AWAY,side_face_override,False,True,2.6,1.8,14.1,12.5,False,True,False,69.8,side
+1770539212.590,603,WARNING - LOOKING AWAY,side_face_override,False,True,1.6,0.2,13.4,11.9,False,True,False,69.8,side
+1770539212.753,604,WARNING - LOOKING AWAY,side_face_override,False,True,0.3,2.1,14.4,10.1,False,True,False,69.8,side
+1770539212.920,605,WARNING - LOOKING AWAY,side_face_override,False,True,1.7,5.6,15.8,8.3,True,True,False,69.8,side
+1770539213.090,606,WARNING - LOOKING AWAY,side_face_override,False,True,3.2,9.1,13.2,8.4,False,True,False,69.8,side
+1770539213.328,607,WARNING - LOOKING AWAY,side_face_override,False,True,3.3,10.8,11.8,8.0,False,True,False,69.7,side
+1770539213.513,608,WARNING - LOOKING AWAY,side_face_override,False,True,1.8,10.2,10.9,8.6,False,True,False,69.7,side
+1770539213.677,609,WARNING - LOOKING AWAY,side_face_override,False,True,0.3,9.1,10.4,6.1,False,True,False,69.7,side
+1770539213.843,610,WARNING - LOOKING AWAY,side_face_override,False,True,1.8,7.2,10.8,5.3,False,True,False,69.7,side
+1770539214.011,611,WARNING - LOOKING AWAY,side_face_override,False,True,4.0,5.0,11.6,4.6,False,True,False,69.7,side
+1770539214.177,612,WARNING - LOOKING AWAY,side_face_override,False,True,5.9,2.9,12.1,3.7,False,True,False,69.7,side
+1770539214.342,613,WARNING - LOOKING AWAY,side_face_override,False,True,7.5,1.2,12.6,2.9,False,True,False,69.7,side
+1770539214.509,614,WARNING - LOOKING AWAY,side_face_override,False,True,7.8,0.3,13.1,2.9,False,True,False,69.7,side
+1770539214.687,615,WARNING - LOOKING AWAY,side_face_override,False,True,6.8,0.3,13.3,3.1,False,True,False,69.6,side
+1770539214.852,616,WARNING - LOOKING AWAY,side_face_override,False,True,5.1,0.9,13.3,1.9,False,True,False,69.6,side
+1770539215.010,617,CALIBRATING,side_face_override,False,True,3.2,1.8,13.5,0.3,False,True,False,0.0,side
+1770539215.180,618,CALIBRATING,side_face_override,False,True,1.9,2.6,14.2,-1.5,False,True,False,0.0,side

@@ -1,0 +1,2174 @@
+#!/usr/bin/env python3
+"""
+KID-WATCH v0.1 — Real-time Study Session Monitor
+Production PoC for Viettel deployment (700k home cameras)
+
+Monitors: posture, phone usage, gaze direction, engagement scoring
+Technologies: MediaPipe Tasks API (pose + face), YOLOv8n (object detection), OpenCV
+"""
+
+import cv2
+import numpy as np
+from ultralytics import YOLO
+from datetime import datetime, timedelta
+from collections import deque
+import time
+import sys
+import urllib.request
+import os
+import math
+
+# MediaPipe Tasks API
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+# Video settings
+CAMERA_INDEX = 0
+FRAME_WIDTH = 1280
+FRAME_HEIGHT = 720
+TARGET_FPS = 30
+
+# Detection thresholds
+POSTURE_ANGLE_THRESHOLD = 25
+GAZE_DOWN_PITCH_THRESHOLD = 15
+GAZE_AWAY_YAW_THRESHOLD = 25
+PHONE_CONFIDENCE_THRESHOLD = 0.55
+POSE_CONFIDENCE_THRESHOLD = 0.5
+
+# Temporal smoothing (avoid flickering)
+STATE_HISTORY_SIZE = 15
+PHONE_DETECTION_FRAMES = 5
+SLOUCH_DETECTION_FRAMES = 30
+
+# Scoring weights
+WEIGHT_POSTURE = 0.35
+WEIGHT_GAZE = 0.35
+WEIGHT_NO_PHONE = 0.30
+
+# UI Colors (BGR format)
+COLOR_STUDYING = (0, 255, 0)
+COLOR_WARNING = (0, 165, 255)
+COLOR_DISTRACTED = (0, 0, 255)
+COLOR_TEXT = (255, 255, 255)
+COLOR_OVERLAY_BG = (40, 40, 40)
+COLOR_PHONE_BOX = (0, 0, 255)
+COLOR_SKELETON = (0, 255, 255)
+
+# MediaPipe model URLs
+POSE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
+FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
+
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+
+def download_model(url, filename):
+    """Download MediaPipe model if not exists."""
+    if os.path.exists(filename):
+        return filename
+
+    print(f"Downloading {filename}...")
+    try:
+        urllib.request.urlretrieve(url, filename)
+        print(f"✓ Downloaded {filename}")
+        return filename
+    except Exception as e:
+        print(f"✗ Failed to download {filename}: {e}")
+        raise
+
+
+def calculate_angle(a, b, c):
+    """Calculate angle ABC using three points (numpy arrays)."""
+    ba = a - b
+    bc = c - b
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
+    angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
+    return np.degrees(angle)
+
+
+def calculate_distance(p1, p2):
+    """Euclidean distance between two points."""
+    return np.linalg.norm(p1 - p2)
+
+
+def draw_text_with_background(
+    img,
+    text,
+    position,
+    font_scale=0.6,
+    thickness=2,
+    text_color=COLOR_TEXT,
+    bg_color=COLOR_OVERLAY_BG,
+    padding=5,
+):
+    """Draw text with semi-transparent background for readability."""
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    (text_width, text_height), baseline = cv2.getTextSize(
+        text, font, font_scale, thickness
+    )
+
+    x, y = position
+    overlay = img.copy()
+    cv2.rectangle(
+        overlay,
+        (x - padding, y - text_height - padding),
+        (x + text_width + padding, y + baseline + padding),
+        bg_color,
+        -1,
+    )
+    cv2.addWeighted(overlay, 0.7, img, 0.3, 0, img)
+
+    cv2.putText(img, text, (x, y), font, font_scale, text_color, thickness, cv2.LINE_AA)
+    return text_height + baseline + 2 * padding
+
+
+def format_duration(seconds):
+    """Format seconds into HH:MM:SS."""
+    return str(timedelta(seconds=int(seconds)))
+
+
+def draw_landmarks_on_image(bgr_image, detection_result):
+    """Draw pose landmarks on image (manual implementation)."""
+    if not detection_result or not detection_result.pose_landmarks:
+        return
+
+    h, w = bgr_image.shape[:2]
+
+    # MediaPipe Pose connections (simplified - key body parts)
+    POSE_CONNECTIONS = [
+        (11, 12),
+        (11, 13),
+        (13, 15),
+        (12, 14),
+        (14, 16),  # Arms
+        (11, 23),
+        (12, 24),
+        (23, 24),  # Torso
+        (23, 25),
+        (25, 27),
+        (24, 26),
+        (26, 28),  # Legs
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 7),
+        (0, 4),
+        (4, 5),
+        (5, 6),
+        (6, 8),  # Face
+    ]
+
+    for pose_landmarks in detection_result.pose_landmarks:
+        # Draw connections
+        for connection in POSE_CONNECTIONS:
+            start_idx, end_idx = connection
+            if start_idx < len(pose_landmarks) and end_idx < len(pose_landmarks):
+                start = pose_landmarks[start_idx]
+                end = pose_landmarks[end_idx]
+
+                if start.visibility > 0.5 and end.visibility > 0.5:
+                    start_point = (int(start.x * w), int(start.y * h))
+                    end_point = (int(end.x * w), int(end.y * h))
+                    cv2.line(bgr_image, start_point, end_point, COLOR_SKELETON, 2)
+
+        # Draw landmarks
+        for landmark in pose_landmarks:
+            if landmark.visibility > 0.5:
+                x = int(landmark.x * w)
+                y = int(landmark.y * h)
+                cv2.circle(bgr_image, (x, y), 3, COLOR_SKELETON, -1)
+
+
+# ============================================================================
+# CORE DETECTION CLASSES
+# ============================================================================
+
+
+class PostureDetector:
+    def __init__(self, calibration_engine=None):
+        model_path = download_model(POSE_MODEL_URL, "pose_landmarker.task")
+
+        base_options = python.BaseOptions(model_asset_path=model_path)
+        options = vision.PoseLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.VIDEO,
+            min_pose_detection_confidence=0.5,
+            min_pose_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+        self.detector = vision.PoseLandmarker.create_from_options(options)
+        self.frame_timestamp = 0
+
+        self.face_width_baseline = None
+        self.baseline_alpha = 0.05
+
+        self.calibration_engine = calibration_engine
+
+    def detect(self, frame_rgb, face_width=None):
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+        self.frame_timestamp += 1
+
+        detection_result = self.detector.detect_for_video(
+            mp_image, self.frame_timestamp
+        )
+
+        if (
+            not detection_result.pose_landmarks
+            or len(detection_result.pose_landmarks) == 0
+        ):
+            return None, None, None
+
+        landmarks = detection_result.pose_landmarks[0]
+
+        LEFT_EAR = 7
+        RIGHT_EAR = 8
+        LEFT_SHOULDER = 11
+        RIGHT_SHOULDER = 12
+        LEFT_HIP = 23
+        RIGHT_HIP = 24
+        LEFT_KNEE = 25
+        RIGHT_KNEE = 26
+
+        left_ear = landmarks[LEFT_EAR]
+        right_ear = landmarks[RIGHT_EAR]
+        left_shoulder = landmarks[LEFT_SHOULDER]
+        right_shoulder = landmarks[RIGHT_SHOULDER]
+        left_hip = landmarks[LEFT_HIP]
+        right_hip = landmarks[RIGHT_HIP]
+        left_knee = landmarks[LEFT_KNEE]
+        right_knee = landmarks[RIGHT_KNEE]
+
+        if (
+            left_ear.visibility < POSE_CONFIDENCE_THRESHOLD
+            or right_ear.visibility < POSE_CONFIDENCE_THRESHOLD
+        ):
+            return None, None, detection_result
+
+        ear = np.array([(left_ear.x + right_ear.x) / 2, (left_ear.y + right_ear.y) / 2])
+        shoulder = np.array(
+            [
+                (left_shoulder.x + right_shoulder.x) / 2,
+                (left_shoulder.y + right_shoulder.y) / 2,
+            ]
+        )
+        hip = np.array([(left_hip.x + right_hip.x) / 2, (left_hip.y + right_hip.y) / 2])
+
+        dx = ear[0] - shoulder[0]
+        dy = shoulder[1] - ear[1]
+        forward_lean = math.degrees(math.atan2(abs(dx), max(dy, 0.001)))
+
+        neck_angle = self._compute_neck_angle(ear, shoulder, hip)
+
+        back_angle = None
+        knees_visible = (
+            left_knee.visibility > POSE_CONFIDENCE_THRESHOLD
+            and right_knee.visibility > POSE_CONFIDENCE_THRESHOLD
+        )
+        if knees_visible:
+            knee = np.array(
+                [(left_knee.x + right_knee.x) / 2, (left_knee.y + right_knee.y) / 2]
+            )
+            back_angle = self._compute_back_angle(shoulder, hip, knee)
+
+        forward_head_ratio = None
+        if face_width is not None:
+            forward_head_ratio = self._compute_forward_head_ratio(face_width)
+
+        is_good = self._evaluate_posture(forward_lean, neck_angle, back_angle)
+
+        metrics = {
+            "forward_lean_angle": forward_lean,
+            "neck_angle": neck_angle,
+            "back_angle": back_angle,
+            "forward_head_ratio": forward_head_ratio,
+        }
+
+        return is_good, metrics, detection_result
+
+    def _compute_neck_angle(self, ear, shoulder, hip):
+        v1 = ear - shoulder
+        v2 = hip - shoulder
+        cosine_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-6)
+        angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
+        return np.degrees(angle)
+
+    def _compute_back_angle(self, shoulder, hip, knee):
+        v1 = shoulder - hip
+        v2 = knee - hip
+        cosine_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-6)
+        angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
+        return np.degrees(angle)
+
+    def _compute_forward_head_ratio(self, current_face_width):
+        if self.face_width_baseline is None:
+            self.face_width_baseline = current_face_width
+            return 1.0
+
+        self.face_width_baseline = (
+            self.baseline_alpha * current_face_width
+            + (1 - self.baseline_alpha) * self.face_width_baseline
+        )
+
+        return current_face_width / (self.face_width_baseline + 1e-6)
+
+    def _evaluate_posture(self, forward_lean, neck_angle, back_angle):
+        thresholds = None
+        if self.calibration_engine:
+            thresholds = self.calibration_engine.get_thresholds()
+
+        slouching = False
+
+        if thresholds:
+            if forward_lean > thresholds["forward_lean_threshold"]:
+                slouching = True
+            if (
+                neck_angle is not None
+                and neck_angle < thresholds["neck_angle_threshold"]
+            ):
+                slouching = True
+            if (
+                back_angle is not None
+                and thresholds["back_angle_threshold"] is not None
+                and back_angle < thresholds["back_angle_threshold"]
+            ):
+                slouching = True
+        else:
+            if forward_lean > POSTURE_ANGLE_THRESHOLD:
+                slouching = True
+            if neck_angle is not None and neck_angle < 140:
+                slouching = True
+            if back_angle is not None and back_angle < 150:
+                slouching = True
+
+        return not slouching
+
+    def draw_skeleton(self, frame, detection_result):
+        """Draw pose skeleton overlay."""
+        if detection_result and detection_result.pose_landmarks:
+            draw_landmarks_on_image(frame, detection_result)
+
+
+class GazeDetector:
+    def __init__(self, calibration_engine=None):
+        model_path = download_model(FACE_MODEL_URL, "face_landmarker.task")
+
+        base_options = python.BaseOptions(model_asset_path=model_path)
+        options = vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.VIDEO,
+            min_face_detection_confidence=0.5,
+            min_face_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+        )
+        self.detector = vision.FaceLandmarker.create_from_options(options)
+        self.frame_timestamp = 0
+
+        self.calibration_engine = calibration_engine
+
+    def detect(self, frame_rgb):
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+        self.frame_timestamp += 1
+
+        detection_result = self.detector.detect_for_video(
+            mp_image, self.frame_timestamp
+        )
+
+        if (
+            not detection_result.face_landmarks
+            or len(detection_result.face_landmarks) == 0
+        ):
+            return None, None, None, None, None
+
+        face_landmarks = detection_result.face_landmarks[0]
+        h, w = frame_rgb.shape[:2]
+
+        # Head pose estimation (existing logic)
+        nose_tip = face_landmarks[1]
+        chin = face_landmarks[152]
+        left_eye_outer = face_landmarks[33]  # Left eye outer corner
+        right_eye_outer = face_landmarks[263]  # Right eye outer corner
+
+        nose_2d = np.array([nose_tip.x * w, nose_tip.y * h])
+        chin_2d = np.array([chin.x * w, chin.y * h])
+        left_eye_2d = np.array([left_eye_outer.x * w, left_eye_outer.y * h])
+        right_eye_2d = np.array([right_eye_outer.x * w, right_eye_outer.y * h])
+
+        eye_center = (left_eye_2d + right_eye_2d) / 2
+        vertical_dist = chin_2d[1] - eye_center[1]
+        nose_vertical_offset = nose_2d[1] - eye_center[1]
+        pitch = (nose_vertical_offset / (vertical_dist + 1e-6)) * 45
+
+        eye_width = calculate_distance(left_eye_2d, right_eye_2d)
+        nose_horizontal_offset = nose_2d[0] - eye_center[0]
+        yaw = (nose_horizontal_offset / (eye_width + 1e-6)) * 45
+
+        # === IRIS TRACKING (NEW) ===
+        # Iris landmarks: right iris center=468, left iris center=473
+        # Eye boundary landmarks: L_top=159, L_bottom=145, R_top=386, R_bottom=374
+
+        inter_ocular_distance = eye_width
+
+        if inter_ocular_distance < 30:
+            iris_ratio = None
+            is_looking_at_desk = (
+                pitch > GAZE_DOWN_PITCH_THRESHOLD and abs(yaw) < GAZE_AWAY_YAW_THRESHOLD
+            )
+        else:
+            right_iris_center = face_landmarks[468]
+            left_iris_center = face_landmarks[473]
+
+            left_eye_top = face_landmarks[159]
+            left_eye_bottom = face_landmarks[145]
+            right_eye_top = face_landmarks[386]
+            right_eye_bottom = face_landmarks[374]
+
+            left_eye_height = left_eye_bottom.y - left_eye_top.y
+            right_eye_height = right_eye_bottom.y - right_eye_top.y
+
+            left_iris_ratio = (left_iris_center.y - left_eye_top.y) / (
+                left_eye_height + 1e-6
+            )
+            right_iris_ratio = (right_iris_center.y - right_eye_top.y) / (
+                right_eye_height + 1e-6
+            )
+
+            iris_ratio = (left_iris_ratio + right_iris_ratio) / 2.0
+
+        thresholds = None
+        if self.calibration_engine:
+            thresholds = self.calibration_engine.get_thresholds()
+
+        iris_threshold = thresholds.get("iris_ratio_threshold") if thresholds else 0.52
+
+        # If iris threshold is None (no iris baseline), skip iris check
+        # This happens with side-angle cameras where iris is not reliably detected
+        if iris_threshold is not None and iris_ratio is not None:
+            is_looking_at_desk = (
+                pitch > GAZE_DOWN_PITCH_THRESHOLD
+                and abs(yaw) < GAZE_AWAY_YAW_THRESHOLD
+                and iris_ratio > iris_threshold
+            )
+        else:
+            # Fall back to head pose only (no iris data available)
+            is_looking_at_desk = (
+                pitch > GAZE_DOWN_PITCH_THRESHOLD and abs(yaw) < GAZE_AWAY_YAW_THRESHOLD
+            )
+
+        return is_looking_at_desk, pitch, yaw, iris_ratio, eye_width
+
+
+class StudyDetector:
+    """
+    Fuses face-based gaze detection with pose-based head-bowed detection.
+    Works from any camera angle: front, side, or rear.
+
+    Priority:
+    1. If face detected → use gaze (pitch/yaw/iris) — most accurate
+    2. If only pose detected → use ear-shoulder angle — "head bowed" proxy
+    3. If nothing detected → person not present
+    """
+
+    # Thresholds for pose-based head-bowed detection
+    HEAD_BOW_ENTER = 40  # degrees - neck flexion angle to enter "studying"
+    HEAD_BOW_EXIT = 35  # degrees - neck flexion angle to exit "studying" (hysteresis)
+
+    def __init__(self):
+        self.pose_studying = False  # Current pose-based studying state (for hysteresis)
+        self._last_source = None  # "face" or "pose" — for debugging
+
+    def detect(self, gaze_at_desk, pose_result, posture_metrics):
+        """
+        Determine if kid is studying and if person is present.
+
+        Args:
+            gaze_at_desk: bool|None from GazeDetector (None = face not detected)
+            pose_result: MediaPipe pose result (from PostureDetector)
+            posture_metrics: dict with neck_angle, forward_lean, etc.
+
+        Returns:
+            (person_present: bool, studying: bool|None, source: str)
+            - person_present: True if pose landmarks visible (regardless of face)
+            - studying: True/False/None based on best available signal
+            - source: "face", "pose", or "none"
+        """
+        # Step 1: Determine person_present from POSE (not face)
+        person_present = (
+            pose_result is not None
+            and pose_result.pose_landmarks
+            and len(pose_result.pose_landmarks) > 0
+        )
+
+        if not person_present:
+            self._last_source = "none"
+            return False, None, "none"
+
+        # Step 2: If face-based gaze is available, use it (most accurate)
+        if gaze_at_desk is not None:
+            self._last_source = "face"
+            return True, gaze_at_desk, "face"
+
+        # Step 3: Face not available — use pose-based head-bowed detection
+        neck_flexion = self._compute_neck_flexion(pose_result)
+
+        if neck_flexion is None:
+            # Can't compute neck flexion (landmarks not visible)
+            self._last_source = "pose"
+            return True, None, "pose"
+
+        # Apply hysteresis
+        if self.pose_studying:
+            # Currently "studying" via pose — need angle < HEAD_BOW_EXIT to exit
+            if neck_flexion < self.HEAD_BOW_EXIT:
+                self.pose_studying = False
+        else:
+            # Currently NOT "studying" via pose — need angle > HEAD_BOW_ENTER to enter
+            if neck_flexion > self.HEAD_BOW_ENTER:
+                self.pose_studying = True
+
+        self._last_source = "pose"
+        return True, self.pose_studying, "pose"
+
+    def _compute_neck_flexion(self, pose_result):
+        """
+        Compute neck flexion angle using torso-relative method.
+        Uses ear position relative to shoulder-hip axis.
+
+        Returns: angle in degrees (0 = aligned with torso, higher = more bowed)
+                 None if required landmarks not visible
+        """
+        landmarks = pose_result.pose_landmarks[0]
+
+        CONFIDENCE_THRESHOLD = 0.5
+
+        # Get landmarks
+        left_ear = landmarks[7]
+        right_ear = landmarks[8]
+        left_shoulder = landmarks[11]
+        right_shoulder = landmarks[12]
+        left_hip = landmarks[23]
+        right_hip = landmarks[24]
+
+        # Pick best visible ear
+        if (
+            left_ear.visibility > CONFIDENCE_THRESHOLD
+            and right_ear.visibility > CONFIDENCE_THRESHOLD
+        ):
+            head_x = (left_ear.x + right_ear.x) / 2
+            head_y = (left_ear.y + right_ear.y) / 2
+        elif left_ear.visibility > CONFIDENCE_THRESHOLD:
+            head_x = left_ear.x
+            head_y = left_ear.y
+        elif right_ear.visibility > CONFIDENCE_THRESHOLD:
+            head_x = right_ear.x
+            head_y = right_ear.y
+        else:
+            # Try nose as fallback
+            nose = landmarks[0]
+            if nose.visibility > CONFIDENCE_THRESHOLD:
+                head_x = nose.x
+                head_y = nose.y
+            else:
+                return None  # Can't determine head position
+
+        # Shoulder midpoint
+        shoulder_x = (left_shoulder.x + right_shoulder.x) / 2
+        shoulder_y = (left_shoulder.y + right_shoulder.y) / 2
+
+        # Hip midpoint (for torso axis)
+        hips_visible = (
+            left_hip.visibility > CONFIDENCE_THRESHOLD
+            and right_hip.visibility > CONFIDENCE_THRESHOLD
+        )
+
+        if hips_visible:
+            hip_x = (left_hip.x + right_hip.x) / 2
+            hip_y = (left_hip.y + right_hip.y) / 2
+
+            # Torso-up vector (from hip to shoulder)
+            torso_dx = shoulder_x - hip_x
+            torso_dy = (
+                shoulder_y - hip_y
+            )  # Note: Y is inverted in image coords (up = negative)
+            torso_len = np.sqrt(torso_dx**2 + torso_dy**2) + 1e-6
+            torso_ux = torso_dx / torso_len
+            torso_uy = torso_dy / torso_len
+        else:
+            # Fallback: assume torso is vertical (less robust but works)
+            torso_ux = 0
+            torso_uy = -1  # Straight up in image coords
+
+        # Head vector (from shoulder to head)
+        head_dx = head_x - shoulder_x
+        head_dy = head_y - shoulder_y
+        head_len = np.sqrt(head_dx**2 + head_dy**2) + 1e-6
+        head_ux = head_dx / head_len
+        head_uy = head_dy / head_len
+
+        # Angle between torso-up and head vector
+        dot = torso_ux * head_ux + torso_uy * head_uy
+        dot = np.clip(dot, -1.0, 1.0)
+        angle_rad = np.arccos(dot)
+        angle_deg = np.degrees(angle_rad)
+
+        return float(angle_deg)
+
+
+class PhoneDetector:
+    """Detects cell phone using YOLOv8."""
+
+    def __init__(self):
+        print("Loading YOLOv8n model (first run will download ~6MB)...")
+        self.model = YOLO("yolov8n.pt")
+        self.phone_class_id = 67
+
+    def detect(self, frame):
+        """
+        Returns: (phone_detected, bounding_boxes)
+        """
+        results = self.model(frame, verbose=False, conf=PHONE_CONFIDENCE_THRESHOLD)
+
+        phone_boxes = []
+        for result in results:
+            boxes = result.boxes
+            for box in boxes:
+                class_id = int(box.cls[0])
+                confidence = float(box.conf[0])
+
+                if class_id == self.phone_class_id:
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+
+                    # === Filter false positives (pens, pencils, thin objects) ===
+                    box_width = x2 - x1
+                    box_height = y2 - y1
+                    aspect_ratio = box_width / (box_height + 1e-6)
+                    box_area = box_width * box_height
+
+                    # Phones have aspect ratio 0.4-2.5; pens are < 0.3 or > 3.0
+                    if aspect_ratio < 0.35 or aspect_ratio > 2.8:
+                        continue  # Too elongated — likely a pen/pencil/stylus
+
+                    # Phones are at least ~60x80 pixels at 720p
+                    if box_area < 4000:
+                        continue  # Too small to be a phone
+                    # === END filter ===
+
+                    phone_boxes.append(
+                        {
+                            "bbox": (int(x1), int(y1), int(x2), int(y2)),
+                            "confidence": confidence,
+                        }
+                    )
+
+        return len(phone_boxes) > 0, phone_boxes
+
+
+# ============================================================================
+# CALIBRATION ENGINE
+# ============================================================================
+
+
+class CalibrationEngine:
+    """Zero-touch auto-calibration from first 15-25 seconds of session."""
+
+    CALIBRATION_DURATION = 10  # seconds (reduced from 20)
+    MAX_BASELINES = 3
+    POSITION_CHANGE_THRESHOLD = 0.25  # 25% shift
+    POSITION_CHANGE_DURATION = 2.0  # seconds sustained
+    MIN_SAMPLES_FOR_CALIBRATION = 30  # ~1.5s at 20 FPS (relaxed for side-angle cameras)
+    MAX_CALIBRATION_TIMEOUT = 45  # seconds - force finalize after this
+
+    # Smart calibration constants
+    WAITING_TIMEOUT = 60  # seconds - force calibrate after this
+    GOOD_POSTURE_NECK_THRESHOLD = 150  # degrees - neck angle must be above this
+    GOOD_POSTURE_LEAN_THRESHOLD = 15  # degrees - forward lean must be below this
+    GOOD_POSTURE_SUSTAIN = 1.5  # seconds - good posture must be sustained this long
+    BAD_POSTURE_GRACE = 2.0  # seconds - bad posture during calibration before reset
+
+    def __init__(self):
+        self.state = "waiting"
+        self.baselines = []
+        self.active_baseline = None
+        self.calibration_samples = []
+        self.calibration_start_time = None
+
+        self.last_stable_face_width = None
+        self.last_stable_pose_centroid = None
+        self.position_change_start = None
+
+        self.waiting_start_time = time.time()
+        self.good_posture_start = None
+        self.bad_posture_start = None
+        self.best_observed_window = None
+        self.best_observed_neck_angle = 0
+        self.calibration_good_samples = 0
+
+        self._debug_frames_total = 0
+        self._debug_frames_pose_ok = 0
+        self._debug_add_sample_called = 0
+        self._debug_samples_accepted = 0
+        self._debug_reject_no_posture = 0
+        self._debug_reject_no_neck_fwd = 0
+        self._debug_reject_neck_range = 0
+        self._debug_reject_back_range = 0
+        self._debug_reject_fwd_lean_range = 0
+        self._debug_iris_unavailable = 0
+        self._debug_face_unavailable = 0
+        self._debug_last_log_time = 0
+
+    def start_calibration(self):
+        self.state = "waiting"
+        self.waiting_start_time = time.time()
+        self.good_posture_start = None
+        self.best_observed_window = None
+        self.best_observed_neck_angle = 0
+        self.calibration_samples = []
+        self.calibration_start_time = None
+        self.position_change_start = None
+        self._debug_frames_total = 0
+        self._debug_frames_pose_ok = 0
+        self._debug_add_sample_called = 0
+        self._debug_samples_accepted = 0
+        self._debug_reject_no_metrics = 0
+        self._debug_reject_no_neck_fwd = 0
+        self._debug_reject_neck_range = 0
+        self._debug_reject_back_range = 0
+        self._debug_reject_fwd_lean_range = 0
+        self._debug_reject_iris_range = 0
+        self._debug_reject_face_small = 0
+        self._debug_last_log_time = 0
+
+    def check_good_posture(self, posture_metrics):
+        if posture_metrics is None:
+            return False
+        neck_angle = posture_metrics.get("neck_angle")
+        forward_lean = posture_metrics.get("forward_lean_angle")
+        if neck_angle is None or forward_lean is None:
+            return False
+        return (
+            neck_angle > self.GOOD_POSTURE_NECK_THRESHOLD
+            and forward_lean < self.GOOD_POSTURE_LEAN_THRESHOLD
+        )
+
+    def update_waiting_state(self, posture_metrics):
+        current_time = time.time()
+        elapsed_waiting = current_time - self.waiting_start_time
+
+        if posture_metrics:
+            neck = posture_metrics.get("neck_angle", 0)
+            if neck > self.best_observed_neck_angle:
+                self.best_observed_neck_angle = neck
+                self.best_observed_window = current_time
+
+        if elapsed_waiting >= self.WAITING_TIMEOUT:
+            print(
+                f"\n[CAL] Waiting timeout ({elapsed_waiting:.0f}s), force-starting calibration"
+            )
+            self._start_calibrating()
+            return True, "Timeout - starting calibration"
+
+        is_good = self.check_good_posture(posture_metrics)
+
+        if is_good:
+            if self.good_posture_start is None:
+                self.good_posture_start = current_time
+
+            sustained = current_time - self.good_posture_start
+            if sustained >= self.GOOD_POSTURE_SUSTAIN:
+                print(
+                    f"\n[CAL] Good posture detected for {sustained:.1f}s, starting calibration!"
+                )
+                self._start_calibrating()
+                return True, "Good posture detected"
+        else:
+            self.good_posture_start = None
+
+        return False, None
+
+    def _start_calibrating(self):
+        self.state = "calibrating"
+        self.calibration_samples = []
+        self.calibration_start_time = time.time()
+        self.bad_posture_start = None
+        self.position_change_start = None
+        self._debug_frames_total = 0
+        self._debug_frames_pose_ok = 0
+        self._debug_add_sample_called = 0
+        self._debug_samples_accepted = 0
+        self._debug_reject_no_posture = (
+            0 if hasattr(self, "_debug_reject_no_posture") else 0
+        )
+        self._debug_reject_no_neck_fwd = 0
+        self._debug_reject_neck_range = 0
+        self._debug_reject_back_range = 0
+        self._debug_reject_fwd_lean_range = 0
+        self._debug_iris_unavailable = 0
+        self._debug_face_unavailable = 0
+        self._debug_last_log_time = 0
+
+    def add_sample(self, posture_metrics, iris_ratio, face_width, pose_centroid):
+        """
+        Called each frame during calibration.
+        MANDATORY: posture_metrics (neck_angle, forward_lean in valid ranges)
+        OPTIONAL: iris_ratio, face_width (stored as None if unavailable/unreliable)
+        Returns: True if sample accepted, False otherwise
+        """
+        if self.state not in ["calibrating", "recalibrating"]:
+            return False
+
+        self._debug_add_sample_called += 1
+
+        if posture_metrics is None:
+            self._debug_reject_no_posture += 1
+            return False
+
+        neck_angle = posture_metrics.get("neck_angle")
+        back_angle = posture_metrics.get("back_angle")
+        forward_lean = posture_metrics.get("forward_lean_angle")
+
+        if neck_angle is None or forward_lean is None:
+            self._debug_reject_no_neck_fwd += 1
+            return False
+
+        if not (100 <= neck_angle <= 180):
+            self._debug_reject_neck_range += 1
+            return False
+
+        clean_back_angle = back_angle
+        if back_angle is not None and not (80 <= back_angle <= 180):
+            clean_back_angle = None  # Store as None if unreliable
+            self._debug_reject_back_range += (
+                1  # Keep counter for debugging (but DON'T return False)
+            )
+
+        if not (0 <= forward_lean <= 60):
+            self._debug_reject_fwd_lean_range += 1
+            return False
+
+        if not self.check_good_posture(posture_metrics):
+            current_time = time.time()
+            if self.bad_posture_start is None:
+                self.bad_posture_start = current_time
+            elif current_time - self.bad_posture_start > self.BAD_POSTURE_GRACE:
+                print(
+                    f"\n[CAL] Bad posture during calibration for >{self.BAD_POSTURE_GRACE}s, resetting to waiting"
+                )
+                self.state = "waiting"
+                self.waiting_start_time = time.time()
+                self.good_posture_start = None
+                self.calibration_samples = []
+                return False
+            return False
+        else:
+            self.bad_posture_start = None
+
+        clean_iris_ratio = None
+        if iris_ratio is not None and 0.3 <= iris_ratio <= 0.8:
+            clean_iris_ratio = iris_ratio
+        else:
+            self._debug_iris_unavailable += 1
+
+        clean_face_width = None
+        if face_width is not None and face_width >= 30:
+            clean_face_width = face_width
+        else:
+            self._debug_face_unavailable += 1
+
+        sample = {
+            "neck_angle": neck_angle,
+            "back_angle": clean_back_angle,
+            "forward_lean_angle": forward_lean,
+            "iris_ratio": clean_iris_ratio,
+            "face_width": clean_face_width,
+            "pose_centroid": pose_centroid,
+            "timestamp": time.time(),
+        }
+        self.calibration_samples.append(sample)
+        self._debug_samples_accepted += 1
+        return True
+
+    def _debug_log_calibration_stats(self):
+        now = time.time()
+        if now - self._debug_last_log_time < 1.0:
+            return
+        self._debug_last_log_time = now
+        elapsed = (
+            now - self.calibration_start_time if self.calibration_start_time else 0
+        )
+        total = self._debug_frames_total or 1
+        print(
+            f"\n[CAL DEBUG] {elapsed:.1f}s | "
+            f"frames={self._debug_frames_total} pose_ok={self._debug_frames_pose_ok}({self._debug_frames_pose_ok * 100 // total}%) "
+            f"called={self._debug_add_sample_called} accepted={self._debug_samples_accepted} | "
+            f"REJECTS: no_posture={self._debug_reject_no_posture} no_neck_fwd={self._debug_reject_no_neck_fwd} "
+            f"neck={self._debug_reject_neck_range} back={self._debug_reject_back_range} "
+            f"fwd_lean={self._debug_reject_fwd_lean_range} | "
+            f"OPTIONAL: iris_unavail={self._debug_iris_unavailable} face_unavail={self._debug_face_unavailable}"
+        )
+
+    def finalize_calibration(self):
+        """
+        Called after CALIBRATION_DURATION seconds.
+        Computes median + MAD for each metric and stores as baseline.
+        Returns: True if calibration successful, False if insufficient data
+        """
+        elapsed = (
+            time.time() - self.calibration_start_time
+            if self.calibration_start_time
+            else 0
+        )
+        num_samples = len(self.calibration_samples)
+        print(
+            f"\n[CAL FINALIZE] samples={num_samples}/{self.MIN_SAMPLES_FOR_CALIBRATION} "
+            f"elapsed={elapsed:.1f}s "
+            f"rate={num_samples / (elapsed + 0.001):.1f}/s"
+        )
+
+        timeout_exceeded = elapsed >= self.MAX_CALIBRATION_TIMEOUT
+        min_absolute_samples = 10
+
+        if num_samples < self.MIN_SAMPLES_FOR_CALIBRATION:
+            if timeout_exceeded and num_samples >= min_absolute_samples:
+                print(
+                    f"[CAL WARN] Timeout exceeded ({elapsed:.1f}s), force-finalizing with {num_samples} samples"
+                )
+            elif timeout_exceeded:
+                print(
+                    f"[CAL ERROR] Timeout exceeded but only {num_samples} samples (need {min_absolute_samples}), switching to active with hardcoded defaults"
+                )
+                self.state = "active"
+                self.active_baseline = None
+                return True
+            else:
+                return False
+
+        neck_angles = [s["neck_angle"] for s in self.calibration_samples]
+        back_angles = [
+            s["back_angle"]
+            for s in self.calibration_samples
+            if s["back_angle"] is not None
+        ]
+        forward_leans = [s["forward_lean_angle"] for s in self.calibration_samples]
+        iris_ratios = [
+            s["iris_ratio"]
+            for s in self.calibration_samples
+            if s["iris_ratio"] is not None
+        ]
+        face_widths = [
+            s["face_width"]
+            for s in self.calibration_samples
+            if s["face_width"] is not None
+        ]
+
+        baseline = {
+            "neck_angle_median": float(np.median(neck_angles)),
+            "neck_angle_mad": float(
+                np.median(np.abs(neck_angles - np.median(neck_angles)))
+            ),
+            "forward_lean_median": float(np.median(forward_leans)),
+            "forward_lean_mad": float(
+                np.median(np.abs(forward_leans - np.median(forward_leans)))
+            ),
+            "timestamp": time.time(),
+        }
+
+        if len(back_angles) >= self.MIN_SAMPLES_FOR_CALIBRATION // 2:
+            baseline["back_angle_median"] = float(np.median(back_angles))
+            baseline["back_angle_mad"] = float(
+                np.median(np.abs(back_angles - np.median(back_angles)))
+            )
+            baseline["has_back_angle"] = True
+        else:
+            baseline["has_back_angle"] = False
+
+        if len(iris_ratios) >= 10:
+            baseline["iris_ratio_median"] = float(np.median(iris_ratios))
+            baseline["iris_ratio_mad"] = float(
+                np.median(np.abs(iris_ratios - np.median(iris_ratios)))
+            )
+            baseline["has_iris"] = True
+        else:
+            baseline["has_iris"] = False
+
+        if len(face_widths) >= 10:
+            baseline["face_width_median"] = float(np.median(face_widths))
+            baseline["face_width_mad"] = float(
+                np.median(np.abs(face_widths - np.median(face_widths)))
+            )
+            baseline["has_face"] = True
+        else:
+            baseline["has_face"] = False
+
+        centroids = [s["pose_centroid"] for s in self.calibration_samples]
+        baseline["pose_centroid_x"] = float(np.median([c[0] for c in centroids]))
+        baseline["pose_centroid_y"] = float(np.median([c[1] for c in centroids]))
+
+        self.baselines.append(baseline)
+        if len(self.baselines) > self.MAX_BASELINES:
+            self.baselines.pop(0)
+
+        self.active_baseline = baseline
+        self.last_stable_face_width = (
+            baseline.get("face_width_median") if baseline["has_face"] else None
+        )
+        self.last_stable_pose_centroid = np.array(
+            [baseline["pose_centroid_x"], baseline["pose_centroid_y"]]
+        )
+
+        self.calibration_samples = []
+        self.state = "active"
+
+        return True
+
+    def check_calibration_progress(self):
+        if self.state == "waiting":
+            return -1.0, False
+
+        if self.state not in ["calibrating", "recalibrating"]:
+            return 1.0, False
+
+        if self.calibration_start_time is None:
+            return 0.0, False
+
+        elapsed = time.time() - self.calibration_start_time
+        progress = min(elapsed / self.CALIBRATION_DURATION, 1.0)
+
+        should_finalize = elapsed >= self.CALIBRATION_DURATION
+
+        return progress, should_finalize
+
+    def check_position_change(self, face_width, pose_centroid):
+        """
+        Called each frame during active monitoring.
+        Detects if face_width or pose_centroid shifted >25% for >2s.
+        Returns: True if position change detected (should trigger recalibration)
+        """
+        if self.state != "active":
+            return False
+
+        if self.last_stable_pose_centroid is None:
+            return False
+
+        if pose_centroid is None:
+            return False
+
+        has_face_baseline = (
+            self.active_baseline is not None
+            and self.active_baseline.get("has_face", False)
+        )
+
+        face_width_change = 0.0
+        if (
+            has_face_baseline
+            and self.last_stable_face_width is not None
+            and face_width is not None
+        ):
+            face_width_change = abs(face_width - self.last_stable_face_width) / (
+                self.last_stable_face_width + 1e-6
+            )
+
+        # Split into X (horizontal) and Y (vertical) separately
+        # Slouching moves Y but NOT X — we don't want slouch to trigger recalibration
+        x_distance = abs(pose_centroid[0] - self.last_stable_pose_centroid[0])
+        y_distance = abs(pose_centroid[1] - self.last_stable_pose_centroid[1])
+
+        if has_face_baseline and self.last_stable_face_width is not None:
+            x_change = x_distance / (self.last_stable_face_width + 1e-6)
+            y_change = y_distance / (self.last_stable_face_width + 1e-6)
+        else:
+            x_change = x_distance / 0.15  # ~15% of frame width as rough normalization
+            y_change = y_distance / 0.15
+
+        # X threshold: 30% = kid moved laterally (actual position change)
+        # Y threshold: 45% = kid stood up or sat on floor (NOT slouching, which is ~15-25%)
+        POSITION_CHANGE_X_THRESHOLD = 0.30
+        POSITION_CHANGE_Y_THRESHOLD = 0.45
+
+        position_changed = (
+            x_change > POSITION_CHANGE_X_THRESHOLD
+            or y_change > POSITION_CHANGE_Y_THRESHOLD
+        )
+
+        current_time = time.time()
+
+        if position_changed:
+            if self.position_change_start is None:
+                self.position_change_start = current_time
+                print(
+                    f"[POS DEBUG] x_change={x_change:.3f} y_change={y_change:.3f} "
+                    f"face_change={face_width_change:.3f} → position_changed=True"
+                )
+
+            elapsed = current_time - self.position_change_start
+            if elapsed >= self.POSITION_CHANGE_DURATION:
+                return True
+        else:
+            self.position_change_start = None
+
+        return False
+
+    def trigger_recalibration(self):
+        """Trigger recalibration after position change detected."""
+        self.state = "recalibrating"
+        self.calibration_samples = []
+        self.calibration_start_time = time.time()
+        self.position_change_start = None
+        self._debug_frames_total = 0
+        self._debug_frames_pose_ok = 0
+        self._debug_add_sample_called = 0
+        self._debug_samples_accepted = 0
+        self._debug_reject_no_metrics = 0
+        self._debug_reject_no_neck_fwd = 0
+        self._debug_reject_neck_range = 0
+        self._debug_reject_back_range = 0
+        self._debug_reject_fwd_lean_range = 0
+        self._debug_reject_iris_range = 0
+        self._debug_reject_face_small = 0
+        self._debug_last_log_time = 0
+
+    def get_thresholds(self):
+        """
+        Return calibrated thresholds for PostureDetector and GazeDetector.
+        Returns dict with thresholds, or None if no calibration available.
+        Uses baseline + k*MAD for robust threshold computation.
+        k=2.5 for ~2 sigma equivalent (catches ~95% of normal variation)
+        """
+        if self.active_baseline is None:
+            return None
+
+        baseline = self.active_baseline
+
+        neck_angle_threshold = baseline["neck_angle_median"] - 2.5 * max(
+            baseline["neck_angle_mad"], 5.0
+        )
+
+        if baseline.get("has_back_angle", False):
+            back_angle_threshold = baseline["back_angle_median"] - 2.5 * max(
+                baseline["back_angle_mad"], 5.0
+            )
+        else:
+            back_angle_threshold = None
+
+        forward_lean_threshold = baseline["forward_lean_median"] + 2.5 * max(
+            baseline["forward_lean_mad"], 3.0
+        )
+
+        if baseline.get("has_iris", False):
+            iris_ratio_threshold = baseline["iris_ratio_median"] + 1.5 * max(
+                baseline["iris_ratio_mad"], 0.05
+            )
+        else:
+            iris_ratio_threshold = None
+
+        return {
+            "neck_angle_threshold": neck_angle_threshold,
+            "back_angle_threshold": back_angle_threshold,
+            "forward_lean_threshold": forward_lean_threshold,
+            "iris_ratio_threshold": iris_ratio_threshold,
+        }
+
+    def match_baseline(self, face_width, pose_centroid):
+        """
+        Match current position to closest stored baseline.
+        Returns: matched baseline index, or None if no close match
+        """
+        if not self.baselines or pose_centroid is None:
+            return None
+
+        distances = []
+        for baseline in self.baselines:
+            baseline_centroid = np.array(
+                [baseline["pose_centroid_x"], baseline["pose_centroid_y"]]
+            )
+
+            if baseline.get("has_face", False) and face_width is not None:
+                face_width_dist = abs(face_width - baseline["face_width_median"]) / (
+                    baseline["face_width_median"] + 1e-6
+                )
+                centroid_dist = np.linalg.norm(pose_centroid - baseline_centroid) / (
+                    baseline["face_width_median"] + 1e-6
+                )
+                distance = 0.5 * face_width_dist + 0.5 * centroid_dist
+            else:
+                centroid_dist = (
+                    np.linalg.norm(pose_centroid - baseline_centroid) / 100.0
+                )
+                distance = centroid_dist
+
+            distances.append(distance)
+
+        min_idx = int(np.argmin(distances))
+        min_distance = distances[min_idx]
+
+        if min_distance < 0.15:
+            return min_idx
+
+        return None
+
+
+# ============================================================================
+# ENGAGEMENT ENGINE
+# ============================================================================
+
+
+class EngagementEngine:
+    """Combines all signals to determine study engagement."""
+
+    def __init__(self, calibration_engine=None):
+        self.state_history = deque(maxlen=STATE_HISTORY_SIZE)
+        self.phone_detection_buffer = deque(maxlen=PHONE_DETECTION_FRAMES)
+        self.slouch_detection_buffer = deque(maxlen=SLOUCH_DETECTION_FRAMES)
+
+        self.session_start = None
+        self.session_active = False
+        self.focus_scores = []
+        self.phone_pickup_events = []
+        self.slouch_events = []
+        self.state_timeline = []
+
+        self.current_state = "INITIALIZING"
+        self.last_phone_detected = False
+        self.last_slouch_detected = False
+
+        self.slouch_signal_start_time = None
+        self.slouch_exit_signal_start_time = None
+        self.slouch_state_committed = False
+
+        self.studying_signal_start_time = None
+        self.studying_exit_signal_start_time = None
+        self.studying_state_committed = False
+
+        self.SLOUCH_ENTER_DWELL = 0.85
+        self.SLOUCH_EXIT_DWELL = 0.4
+        self.STUDYING_ENTER_DWELL = 0.85
+        self.STUDYING_EXIT_DWELL = 0.4
+
+        self.calibration_engine = calibration_engine
+
+    def _update_slouch_hysteresis(self, posture_good, current_time):
+        """
+        Update slouch state with hysteresis.
+        Enter slouching: requires sustained bad posture for SLOUCH_ENTER_DWELL seconds
+        Exit slouching: requires sustained good posture for SLOUCH_EXIT_DWELL seconds
+        Returns: True if slouching confirmed, False otherwise
+        """
+        bad_posture = not posture_good
+
+        if bad_posture:
+            if self.slouch_signal_start_time is None:
+                self.slouch_signal_start_time = current_time
+            self.slouch_exit_signal_start_time = None
+
+            elapsed = current_time - self.slouch_signal_start_time
+            if elapsed >= self.SLOUCH_ENTER_DWELL:
+                self.slouch_state_committed = True
+        else:
+            if self.slouch_exit_signal_start_time is None:
+                self.slouch_exit_signal_start_time = current_time
+            self.slouch_signal_start_time = None
+
+            if self.slouch_state_committed:
+                elapsed = current_time - self.slouch_exit_signal_start_time
+                if elapsed >= self.SLOUCH_EXIT_DWELL:
+                    self.slouch_state_committed = False
+
+        return self.slouch_state_committed
+
+    def _update_studying_hysteresis(self, studying, current_time):
+        """
+        Update studying state with hysteresis.
+        Enter studying: requires sustained desk-gaze for STUDYING_ENTER_DWELL seconds
+        Exit studying: requires sustained non-desk-gaze for STUDYING_EXIT_DWELL seconds
+        Returns: True if studying confirmed, False otherwise
+        """
+        if studying:
+            if self.studying_signal_start_time is None:
+                self.studying_signal_start_time = current_time
+            self.studying_exit_signal_start_time = None
+
+            elapsed = current_time - self.studying_signal_start_time
+            if elapsed >= self.STUDYING_ENTER_DWELL:
+                self.studying_state_committed = True
+        else:
+            if self.studying_exit_signal_start_time is None:
+                self.studying_exit_signal_start_time = current_time
+            self.studying_signal_start_time = None
+
+            if self.studying_state_committed:
+                elapsed = current_time - self.studying_exit_signal_start_time
+                if elapsed >= self.STUDYING_EXIT_DWELL:
+                    self.studying_state_committed = False
+
+        return self.studying_state_committed
+
+    def start_session(self):
+        """Start a new monitoring session."""
+        self.session_start = datetime.now()
+        self.session_active = True
+        self.focus_scores = []
+        self.phone_pickup_events = []
+        self.slouch_events = []
+        self.state_timeline = []
+        self.current_state = "STUDYING"
+
+        self.slouch_signal_start_time = None
+        self.slouch_exit_signal_start_time = None
+        self.slouch_state_committed = False
+        self.studying_signal_start_time = None
+        self.studying_exit_signal_start_time = None
+        self.studying_state_committed = False
+
+        print(f"\n[SESSION START] {self.session_start.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    def stop_session(self):
+        """Stop the current session."""
+        self.session_active = False
+
+    def reset_session(self):
+        """Reset session data."""
+        self.start_session()
+
+    def update(self, posture_good, studying, phone_detected, person_present=True):
+        if not self.session_active:
+            return "SESSION PAUSED", 0, COLOR_WARNING
+
+        if self.calibration_engine and self.calibration_engine.state in [
+            "waiting",
+            "calibrating",
+            "recalibrating",
+        ]:
+            return (
+                "WAITING"
+                if self.calibration_engine.state == "waiting"
+                else "CALIBRATING",
+                0,
+                COLOR_WARNING,
+            )
+
+        if not person_present:
+            return "NO PERSON DETECTED", 0, COLOR_WARNING
+
+        if posture_good is None and studying is None:
+            return "NO PERSON DETECTED", 0, COLOR_WARNING
+
+        current_time = time.time()
+
+        posture_score = 1.0 if posture_good else 0.0
+        studying_score = 1.0 if studying else 0.0
+        phone_score = 0.0 if phone_detected else 1.0
+
+        frame_score = (
+            WEIGHT_POSTURE * posture_score
+            + WEIGHT_GAZE * studying_score
+            + WEIGHT_NO_PHONE * phone_score
+        )
+
+        self.focus_scores.append(frame_score)
+
+        self.phone_detection_buffer.append(phone_detected)
+        phone_confirmed = (
+            sum(self.phone_detection_buffer) >= PHONE_DETECTION_FRAMES * 0.6
+        )
+
+        if phone_confirmed and not self.last_phone_detected:
+            self.phone_pickup_events.append(datetime.now())
+        self.last_phone_detected = phone_confirmed
+
+        slouch_confirmed = self._update_slouch_hysteresis(posture_good, current_time)
+        studying_confirmed = self._update_studying_hysteresis(studying, current_time)
+
+        if slouch_confirmed and not self.last_slouch_detected:
+            self.slouch_events.append(datetime.now())
+        self.last_slouch_detected = slouch_confirmed
+
+        if phone_confirmed:
+            state = "DISTRACTED - PHONE"
+            color = COLOR_DISTRACTED
+        elif slouch_confirmed:
+            state = "WARNING - SLOUCHING"
+            color = COLOR_WARNING
+        elif not studying_confirmed:
+            state = "WARNING - LOOKING AWAY"
+            color = COLOR_WARNING
+        else:
+            state = "STUDYING"
+            color = COLOR_STUDYING
+
+        if state != self.current_state:
+            self.state_timeline.append({"timestamp": datetime.now(), "state": state})
+            self.current_state = state
+
+        avg_focus = (
+            np.mean(self.focus_scores) * 100 if len(self.focus_scores) > 0 else 0
+        )
+
+        return state, avg_focus, color
+
+    def get_session_duration(self):
+        """Get current session duration in seconds."""
+        if self.session_start:
+            return (datetime.now() - self.session_start).total_seconds()
+        return 0
+
+    def generate_report(self):
+        """Generate detailed session report."""
+        if not self.session_start:
+            return "No session data available."
+
+        duration = self.get_session_duration()
+        avg_focus = np.mean(self.focus_scores) * 100 if self.focus_scores else 0
+
+        report = []
+        report.append("\n" + "=" * 70)
+        report.append("KID-WATCH SESSION REPORT")
+        report.append("=" * 70)
+        report.append(
+            f"Session Start:     {self.session_start.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        report.append(
+            f"Session End:       {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        report.append(f"Total Duration:    {format_duration(duration)}")
+        report.append("-" * 70)
+        report.append(f"Focus Score:       {avg_focus:.1f}%")
+        report.append(f"Phone Pickups:     {len(self.phone_pickup_events)}")
+        report.append(f"Posture Alerts:    {len(self.slouch_events)}")
+        report.append("-" * 70)
+
+        report.append("STATE TIMELINE:")
+        if self.state_timeline:
+            for i, event in enumerate(self.state_timeline[:10]):
+                timestamp = event["timestamp"].strftime("%H:%M:%S")
+                report.append(f"  [{timestamp}] → {event['state']}")
+            if len(self.state_timeline) > 10:
+                report.append(
+                    f"  ... and {len(self.state_timeline) - 10} more state changes"
+                )
+        else:
+            report.append("  No state changes recorded")
+
+        report.append("-" * 70)
+
+        report.append("RECOMMENDATIONS:")
+        if avg_focus >= 80:
+            report.append("  ✓ Excellent focus! Keep up the great work.")
+        elif avg_focus >= 60:
+            report.append("  • Good session. Try to minimize phone distractions.")
+        else:
+            report.append("  ⚠ Focus needs improvement. Consider:")
+
+        if len(self.phone_pickup_events) > 5:
+            report.append("  • Put phone in another room or use app blockers")
+        if len(self.slouch_events) > 10:
+            report.append(
+                "  • Adjust chair height and monitor position for better posture"
+            )
+
+        report.append("=" * 70 + "\n")
+
+        return "\n".join(report)
+
+
+# ============================================================================
+# DASHBOARD RENDERER
+# ============================================================================
+
+
+class DashboardRenderer:
+    """Renders professional UI overlay on video frame."""
+
+    def __init__(self, frame_width, frame_height):
+        self.width = frame_width
+        self.height = frame_height
+
+    def render(
+        self,
+        frame,
+        state,
+        focus_score,
+        session_duration,
+        phone_count,
+        slouch_count,
+        phone_boxes=None,
+        iris_ratio=None,
+        posture_metrics=None,
+        calibration_progress=None,
+    ):
+        self._draw_top_bar(frame, session_duration)
+
+        if calibration_progress is not None:
+            self._draw_calibration_status(frame, calibration_progress)
+
+        self._draw_status_panel(frame, state, focus_score, phone_count, slouch_count)
+
+        if iris_ratio is not None or posture_metrics is not None:
+            self._draw_debug_info(frame, iris_ratio, posture_metrics)
+
+        if phone_boxes:
+            for phone in phone_boxes:
+                self._draw_phone_box(frame, phone)
+
+        self._draw_controls_hint(frame)
+
+    def _draw_calibration_status(self, frame, progress):
+        panel_width = 400
+        panel_height = 100
+        panel_x = (self.width - panel_width) // 2
+        panel_y = 100
+
+        overlay = frame.copy()
+        cv2.rectangle(
+            overlay,
+            (panel_x, panel_y),
+            (panel_x + panel_width, panel_y + panel_height),
+            COLOR_OVERLAY_BG,
+            -1,
+        )
+        cv2.addWeighted(overlay, 0.9, frame, 0.1, 0, frame)
+
+        cv2.rectangle(
+            frame,
+            (panel_x, panel_y),
+            (panel_x + panel_width, panel_y + panel_height),
+            COLOR_WARNING,
+            3,
+        )
+
+        if progress == -1:
+            cv2.putText(
+                frame,
+                "Waiting to Calibrate",
+                (panel_x + 20, panel_y + 35),
+                cv2.FONT_HERSHEY_DUPLEX,
+                0.8,
+                COLOR_TEXT,
+                2,
+                cv2.LINE_AA,
+            )
+
+            cv2.putText(
+                frame,
+                "Sit up straight to begin!",
+                (panel_x + 20, panel_y + 60),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (200, 200, 200),
+                1,
+                cv2.LINE_AA,
+            )
+        else:
+            cv2.putText(
+                frame,
+                "Calibrating...",
+                (panel_x + 20, panel_y + 35),
+                cv2.FONT_HERSHEY_DUPLEX,
+                0.8,
+                COLOR_TEXT,
+                2,
+                cv2.LINE_AA,
+            )
+
+            cv2.putText(
+                frame,
+                "Please sit naturally and look at your desk",
+                (panel_x + 20, panel_y + 60),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (200, 200, 200),
+                1,
+                cv2.LINE_AA,
+            )
+
+            bar_x = panel_x + 20
+            bar_y = panel_y + 75
+            bar_width = panel_width - 40
+            bar_height = 15
+
+            cv2.rectangle(
+                frame,
+                (bar_x, bar_y),
+                (bar_x + bar_width, bar_y + bar_height),
+                (60, 60, 60),
+                -1,
+            )
+
+            fill_width = int(bar_width * progress)
+            cv2.rectangle(
+                frame,
+                (bar_x, bar_y),
+                (bar_x + fill_width, bar_y + bar_height),
+                COLOR_WARNING,
+                -1,
+            )
+
+            progress_text = f"{int(progress * 100)}%"
+            cv2.putText(
+                frame,
+                progress_text,
+                (bar_x + bar_width + 10, bar_y + 12),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                COLOR_TEXT,
+                1,
+                cv2.LINE_AA,
+            )
+
+    def _draw_top_bar(self, frame, duration):
+        overlay = frame.copy()
+        bar_height = 60
+        cv2.rectangle(overlay, (0, 0), (self.width, bar_height), COLOR_OVERLAY_BG, -1)
+        cv2.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
+
+        cv2.putText(
+            frame,
+            "KID-WATCH v0.1",
+            (20, 35),
+            cv2.FONT_HERSHEY_DUPLEX,
+            1.0,
+            COLOR_TEXT,
+            2,
+            cv2.LINE_AA,
+        )
+
+        cv2.putText(
+            frame,
+            "Study Session Monitor",
+            (20, 52),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (180, 180, 180),
+            1,
+            cv2.LINE_AA,
+        )
+
+        time_str = f"Session: {format_duration(duration)}"
+        cv2.putText(
+            frame,
+            time_str,
+            (self.width - 250, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            COLOR_TEXT,
+            2,
+            cv2.LINE_AA,
+        )
+
+    def _draw_status_panel(self, frame, state, focus_score, phone_count, slouch_count):
+        """Draw right-side status panel."""
+        panel_width = 320
+        panel_x = self.width - panel_width - 20
+        panel_y = 80
+
+        overlay = frame.copy()
+        cv2.rectangle(
+            overlay,
+            (panel_x, panel_y),
+            (panel_x + panel_width, panel_y + 280),
+            COLOR_OVERLAY_BG,
+            -1,
+        )
+        cv2.addWeighted(overlay, 0.85, frame, 0.15, 0, frame)
+
+        if "STUDYING" in state:
+            border_color = COLOR_STUDYING
+        elif "DISTRACTED" in state:
+            border_color = COLOR_DISTRACTED
+        else:
+            border_color = COLOR_WARNING
+
+        cv2.rectangle(
+            frame,
+            (panel_x, panel_y),
+            (panel_x + panel_width, panel_y + 280),
+            border_color,
+            3,
+        )
+
+        y_offset = panel_y + 40
+
+        cv2.putText(
+            frame,
+            "STATUS",
+            (panel_x + 20, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (200, 200, 200),
+            1,
+            cv2.LINE_AA,
+        )
+        y_offset += 35
+
+        state_lines = state.split(" - ")
+        for line in state_lines:
+            cv2.putText(
+                frame,
+                line,
+                (panel_x + 20, y_offset),
+                cv2.FONT_HERSHEY_DUPLEX,
+                0.8,
+                border_color,
+                2,
+                cv2.LINE_AA,
+            )
+            y_offset += 30
+
+        y_offset += 10
+
+        cv2.putText(
+            frame,
+            "FOCUS SCORE",
+            (panel_x + 20, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (200, 200, 200),
+            1,
+            cv2.LINE_AA,
+        )
+        y_offset += 30
+
+        bar_width = 260
+        bar_height = 25
+        bar_x = panel_x + 20
+
+        cv2.rectangle(
+            frame,
+            (bar_x, y_offset - 20),
+            (bar_x + bar_width, y_offset - 20 + bar_height),
+            (60, 60, 60),
+            -1,
+        )
+
+        fill_width = int(bar_width * (focus_score / 100))
+        if focus_score >= 80:
+            fill_color = COLOR_STUDYING
+        elif focus_score >= 60:
+            fill_color = COLOR_WARNING
+        else:
+            fill_color = COLOR_DISTRACTED
+
+        cv2.rectangle(
+            frame,
+            (bar_x, y_offset - 20),
+            (bar_x + fill_width, y_offset - 20 + bar_height),
+            fill_color,
+            -1,
+        )
+
+        score_text = f"{focus_score:.1f}%"
+        cv2.putText(
+            frame,
+            score_text,
+            (bar_x + bar_width + 10, y_offset - 5),
+            cv2.FONT_HERSHEY_DUPLEX,
+            0.7,
+            COLOR_TEXT,
+            2,
+            cv2.LINE_AA,
+        )
+
+        y_offset += 40
+
+        cv2.putText(
+            frame,
+            "ALERTS",
+            (panel_x + 20, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (200, 200, 200),
+            1,
+            cv2.LINE_AA,
+        )
+        y_offset += 30
+
+        cv2.putText(
+            frame,
+            f"Phone Pickups:  {phone_count}",
+            (panel_x + 20, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            COLOR_TEXT,
+            1,
+            cv2.LINE_AA,
+        )
+        y_offset += 25
+
+        cv2.putText(
+            frame,
+            f"Posture Alerts: {slouch_count}",
+            (panel_x + 20, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            COLOR_TEXT,
+            1,
+            cv2.LINE_AA,
+        )
+
+    def _draw_debug_info(self, frame, iris_ratio, posture_metrics):
+        debug_x = 20
+        debug_y = 100
+
+        lines = []
+
+        if iris_ratio is not None:
+            iris_text = f"Iris Ratio: {iris_ratio:.3f}"
+            iris_color = COLOR_STUDYING if iris_ratio > 0.52 else COLOR_WARNING
+            lines.append((iris_text, iris_color))
+
+        if posture_metrics is not None:
+            if posture_metrics.get("neck_angle") is not None:
+                neck_angle = posture_metrics["neck_angle"]
+                neck_text = f"Neck Angle: {neck_angle:.1f}°"
+                neck_color = (
+                    COLOR_STUDYING
+                    if neck_angle > 150
+                    else (COLOR_WARNING if neck_angle > 140 else COLOR_DISTRACTED)
+                )
+                lines.append((neck_text, neck_color))
+
+            if posture_metrics.get("back_angle") is not None:
+                back_angle = posture_metrics["back_angle"]
+                back_text = f"Back Angle: {back_angle:.1f}°"
+                back_color = (
+                    COLOR_STUDYING
+                    if back_angle > 160
+                    else (COLOR_WARNING if back_angle > 150 else COLOR_DISTRACTED)
+                )
+                lines.append((back_text, back_color))
+
+            if posture_metrics.get("forward_head_ratio") is not None:
+                fh_ratio = posture_metrics["forward_head_ratio"]
+                fh_text = f"Fwd Head: {fh_ratio:.2f}x"
+                fh_color = COLOR_STUDYING if fh_ratio < 1.10 else COLOR_WARNING
+                lines.append((fh_text, fh_color))
+
+        if not lines:
+            return
+
+        panel_height = 30 + len(lines) * 25
+        overlay = frame.copy()
+        cv2.rectangle(
+            overlay,
+            (debug_x, debug_y),
+            (debug_x + 220, debug_y + panel_height),
+            COLOR_OVERLAY_BG,
+            -1,
+        )
+        cv2.addWeighted(overlay, 0.85, frame, 0.15, 0, frame)
+
+        cv2.putText(
+            frame,
+            "DEBUG INFO",
+            (debug_x + 10, debug_y + 25),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (200, 200, 200),
+            1,
+            cv2.LINE_AA,
+        )
+
+        y_offset = debug_y + 50
+        for text, color in lines:
+            cv2.putText(
+                frame,
+                text,
+                (debug_x + 10, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
+            y_offset += 25
+
+    def _draw_phone_box(self, frame, phone):
+        """Draw bounding box around detected phone."""
+        x1, y1, x2, y2 = phone["bbox"]
+        confidence = phone["confidence"]
+
+        thickness = 3
+        cv2.rectangle(frame, (x1, y1), (x2, y2), COLOR_PHONE_BOX, thickness)
+
+        label = f"PHONE {confidence:.0%}"
+        label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+        cv2.rectangle(
+            frame,
+            (x1, y1 - label_size[1] - 10),
+            (x1 + label_size[0] + 10, y1),
+            COLOR_PHONE_BOX,
+            -1,
+        )
+        cv2.putText(
+            frame,
+            label,
+            (x1 + 5, y1 - 5),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            COLOR_TEXT,
+            2,
+            cv2.LINE_AA,
+        )
+
+    def _draw_controls_hint(self, frame):
+        """Draw keyboard controls at bottom."""
+        hints = "Controls: [Q]uit  [S]tart/Stop  [R]eset"
+        text_size, _ = cv2.getTextSize(hints, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        x = (self.width - text_size[0]) // 2
+        y = self.height - 15
+
+        cv2.putText(
+            frame,
+            hints,
+            (x, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (180, 180, 180),
+            1,
+            cv2.LINE_AA,
+        )
+
+
+# ============================================================================
+# MAIN APPLICATION
+# ============================================================================
+
+
+class KidWatchApp:
+    """Main application orchestrator."""
+
+    def __init__(self):
+        print("\n" + "=" * 70)
+        print("KID-WATCH v0.1 — Study Session Monitor")
+        print("Production PoC for Viettel (700k home camera deployment)")
+        print("=" * 70 + "\n")
+
+        print("Initializing components...")
+        self.calibration_engine = CalibrationEngine()
+        self.posture_detector = PostureDetector(self.calibration_engine)
+        self.gaze_detector = GazeDetector(self.calibration_engine)
+        self.phone_detector = PhoneDetector()
+        self.study_detector = StudyDetector()
+        self.engagement_engine = EngagementEngine(self.calibration_engine)
+
+        print(f"Opening camera {CAMERA_INDEX}...")
+        self.cap = cv2.VideoCapture(CAMERA_INDEX)
+
+        if not self.cap.isOpened():
+            raise RuntimeError(
+                "ERROR: Could not open webcam. Please check camera connection."
+            )
+
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+        self.cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+
+        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print(f"Camera resolution: {actual_width}x{actual_height}")
+
+        self.dashboard = DashboardRenderer(actual_width, actual_height)
+
+        self.fps_history = deque(maxlen=30)
+        self.last_frame_time = time.time()
+
+        print("\n✓ Initialization complete!")
+        print("\nStarting session automatically...")
+        self.engagement_engine.start_session()
+        self.calibration_engine.start_calibration()
+
+    def run(self):
+        """Main application loop."""
+        print("\nPress 'Q' to quit and see session report\n")
+
+        try:
+            while True:
+                ret, frame = self.cap.read()
+                if not ret:
+                    print("ERROR: Failed to read frame from camera")
+                    break
+
+                frame = cv2.flip(frame, 1)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                gaze_at_desk, pitch, yaw, iris_ratio, face_width = (
+                    self.gaze_detector.detect(frame_rgb)
+                )
+                posture_good, posture_metrics, pose_result = (
+                    self.posture_detector.detect(frame_rgb, face_width)
+                )
+                phone_detected, phone_boxes = self.phone_detector.detect(frame)
+
+                person_present, studying, study_source = self.study_detector.detect(
+                    gaze_at_desk, pose_result, posture_metrics
+                )
+
+                if study_source == "pose":
+                    current_time = time.time()
+                    if not hasattr(self, "_last_pose_log_time"):
+                        self._last_pose_log_time = 0
+                    if current_time - self._last_pose_log_time >= 1.0:
+                        neck_flex = (
+                            self.study_detector._compute_neck_flexion(pose_result)
+                            if pose_result and pose_result.pose_landmarks
+                            else None
+                        )
+                        if neck_flex is not None:
+                            print(
+                                f"[STUDY] source=pose neck_flex={neck_flex:.1f}° studying={studying}"
+                            )
+                        self._last_pose_log_time = current_time
+
+                calibration_progress = None
+                if self.calibration_engine.state == "waiting":
+                    state_changed, msg = self.calibration_engine.update_waiting_state(
+                        posture_metrics
+                    )
+                    calibration_progress = -1
+
+                elif self.calibration_engine.state in ["calibrating", "recalibrating"]:
+                    self.calibration_engine._debug_frames_total += 1
+                    if pose_result and pose_result.pose_landmarks:
+                        self.calibration_engine._debug_frames_pose_ok += 1
+                        landmarks = pose_result.pose_landmarks[0]
+                        left_shoulder = landmarks[11]
+                        right_shoulder = landmarks[12]
+                        pose_centroid = np.array(
+                            [
+                                (left_shoulder.x + right_shoulder.x) / 2,
+                                (left_shoulder.y + right_shoulder.y) / 2,
+                            ]
+                        )
+
+                        self.calibration_engine.add_sample(
+                            posture_metrics, iris_ratio, face_width, pose_centroid
+                        )
+
+                    progress, should_finalize = (
+                        self.calibration_engine.check_calibration_progress()
+                    )
+                    calibration_progress = progress
+
+                    self.calibration_engine._debug_log_calibration_stats()
+
+                    if should_finalize:
+                        success = self.calibration_engine.finalize_calibration()
+                        if success:
+                            print("\n✓ Calibration complete!")
+                        else:
+                            print("\n⚠ Calibration extended (insufficient data)")
+
+                elif self.calibration_engine.state == "active":
+                    if pose_result and pose_result.pose_landmarks and face_width:
+                        landmarks = pose_result.pose_landmarks[0]
+                        left_shoulder = landmarks[11]
+                        right_shoulder = landmarks[12]
+                        pose_centroid = np.array(
+                            [
+                                (left_shoulder.x + right_shoulder.x) / 2,
+                                (left_shoulder.y + right_shoulder.y) / 2,
+                            ]
+                        )
+
+                        if self.calibration_engine.check_position_change(
+                            face_width, pose_centroid
+                        ):
+                            print("\n⚠ Position change detected, recalibrating...")
+                            self.calibration_engine.trigger_recalibration()
+
+                state, focus_score, status_color = self.engagement_engine.update(
+                    posture_good, studying, phone_detected, person_present
+                )
+
+                self.posture_detector.draw_skeleton(frame, pose_result)
+
+                self.dashboard.render(
+                    frame,
+                    state,
+                    focus_score,
+                    self.engagement_engine.get_session_duration(),
+                    len(self.engagement_engine.phone_pickup_events),
+                    len(self.engagement_engine.slouch_events),
+                    phone_boxes,
+                    iris_ratio,
+                    posture_metrics,
+                    calibration_progress,
+                )
+
+                current_time = time.time()
+                fps = 1.0 / (current_time - self.last_frame_time + 1e-6)
+                self.fps_history.append(fps)
+                avg_fps = np.mean(self.fps_history)
+                self.last_frame_time = current_time
+
+                cv2.putText(
+                    frame,
+                    f"FPS: {avg_fps:.1f}",
+                    (20, self.dashboard.height - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (180, 180, 180),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+                cv2.imshow("KID-WATCH - Study Monitor", frame)
+
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q") or key == ord("Q"):
+                    print("\nQuitting...")
+                    break
+                elif key == ord("s") or key == ord("S"):
+                    if self.engagement_engine.session_active:
+                        self.engagement_engine.stop_session()
+                        print("\n[SESSION PAUSED]")
+                    else:
+                        self.engagement_engine.start_session()
+                elif key == ord("r") or key == ord("R"):
+                    self.engagement_engine.reset_session()
+                    print("\n[SESSION RESET]")
+
+        except KeyboardInterrupt:
+            print("\n\nInterrupted by user")
+
+        finally:
+            self.cleanup()
+
+    def cleanup(self):
+        """Clean up resources and show report."""
+        print("\nGenerating session report...")
+        report = self.engagement_engine.generate_report()
+        print(report)
+
+        self.cap.release()
+        cv2.destroyAllWindows()
+        print("Resources released. Goodbye!\n")
+
+
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
+
+
+def main():
+    """Application entry point."""
+    try:
+        app = KidWatchApp()
+        app.run()
+    except Exception as e:
+        print(f"\nFATAL ERROR: {e}")
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
