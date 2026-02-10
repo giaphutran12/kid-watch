@@ -13,6 +13,7 @@ class State(Enum):
     SLOUCHING = "slouching"
     DISTRACTED = "distracted"
     AWAY = "away"
+    NOT_STUDYING = "not_studying"
     UNKNOWN = "unknown"
 
 
@@ -32,6 +33,7 @@ class DetectionStateMachine:
         distracted_seconds: float = 2.0,  # Reduced from 8.0 to 2.0 seconds
         away_seconds: float = 3.0,
         slouch_frames: int = 30,
+        session_start_seconds: float = 30.0,
     ):
         self.fps = fps
         self.studying_enter_frames = studying_enter_frames
@@ -40,6 +42,7 @@ class DetectionStateMachine:
         self.distracted_frames = int(distracted_seconds * fps)
         self.away_frames = int(away_seconds * fps)
         self.slouch_frames = slouch_frames
+        self.session_start_frames = int(session_start_seconds * fps)
 
         self._state = State.UNKNOWN
         self._confidence = 0.0
@@ -51,6 +54,9 @@ class DetectionStateMachine:
         self._distracted_ct = 0
         self._away_ct = 0
         self._slouch_ct = 0
+
+        self._session_active = False
+        self._session_studying_ct = 0
 
     def update(
         self,
@@ -106,7 +112,10 @@ class DetectionStateMachine:
 
         if phone_detected:
             self._reset_non_away_counters()
-            self._transition(State.PHONE, 1.0)
+            if self._session_active:
+                self._transition(State.PHONE, 1.0)
+            else:
+                self._transition(State.NOT_STUDYING, 1.0)
             return self._state, self._confidence
 
         if action_prediction == "sleeping":
@@ -115,6 +124,7 @@ class DetectionStateMachine:
             self._studying_exit_ct = 0
             self._distracted_ct = 0
             self._slouch_ct = 0
+            self._session_studying_ct = 0
             if self._sleeping_ct >= self.sleeping_enter_frames:
                 self._transition(State.SLEEPING, action_confidence)
         elif action_prediction == "studying":
@@ -122,21 +132,44 @@ class DetectionStateMachine:
             self._distracted_ct = 0
             self._studying_ct += 1
             self._studying_exit_ct = 0
+
+            if not self._session_active:
+                self._session_studying_ct += 1
+                if self._session_studying_ct >= self.session_start_frames:
+                    self._session_active = True
+                    logger.info(
+                        "[SESSION] Session started after %d frames (%.1fs) of sustained studying",
+                        self._session_studying_ct,
+                        self._session_studying_ct / self.fps,
+                    )
+                    if self._studying_ct >= self.studying_enter_frames:
+                        self._transition(State.STUDYING, action_confidence)
+
             if self._studying_ct >= self.studying_enter_frames:
-                self._transition(State.STUDYING, action_confidence)
+                if self._session_active:
+                    self._transition(State.STUDYING, action_confidence)
+                else:
+                    self._transition(State.NOT_STUDYING, action_confidence)
         else:
             self._sleeping_ct = 0
             self._studying_ct = 0
             self._distracted_ct += 1
             self._slouch_ct = 0
+            self._session_studying_ct = 0
 
             if self._state == State.STUDYING:
                 self._studying_exit_ct += 1
                 if self._studying_exit_ct >= self.studying_exit_frames:
                     self._studying_exit_ct = 0
-                    self._transition(State.DISTRACTED, action_confidence)
+                    if self._session_active:
+                        self._transition(State.DISTRACTED, action_confidence)
+                    else:
+                        self._transition(State.NOT_STUDYING, action_confidence)
             elif self._distracted_ct >= self.distracted_frames:
-                self._transition(State.DISTRACTED, action_confidence)
+                if self._session_active:
+                    self._transition(State.DISTRACTED, action_confidence)
+                else:
+                    self._transition(State.NOT_STUDYING, action_confidence)
 
         if (
             posture_good is False
@@ -150,7 +183,10 @@ class DetectionStateMachine:
         ):
             self._slouch_ct += 1
             if self._slouch_ct >= self.slouch_frames:
-                self._transition(State.SLOUCHING, self.SLOUCHING_CONFIDENCE)
+                if self._session_active:
+                    self._transition(State.SLOUCHING, self.SLOUCHING_CONFIDENCE)
+                else:
+                    self._transition(State.NOT_STUDYING, self.SLOUCHING_CONFIDENCE)
         elif posture_good is True:
             self._slouch_ct = 0
 
@@ -186,6 +222,8 @@ class DetectionStateMachine:
         self._distracted_ct = 0
         self._away_ct = 0
         self._slouch_ct = 0
+        self._session_active = False
+        self._session_studying_ct = 0
 
     @property
     def state(self) -> State:

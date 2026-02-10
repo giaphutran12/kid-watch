@@ -652,6 +652,8 @@ class KidWatchApp:
                         state_value = state_machine_state.value.upper()
                         if state_value == "AWAY":
                             actual_state = "ABSENT"
+                        elif state_value == "NOT_STUDYING":
+                            actual_state = "NOT_STUDYING"
                         else:
                             actual_state = state_value
                     else:

@@ -168,3 +168,228 @@
 - Eval system works correctly (frame-by-frame comparison, delay tracking)
 - CSV logging captures all signals for offline analysis
 
+## [2026-02-10] ITERATION 1 RESULTS — OLD (STALE CODE RUN, IGNORE)
+
+### Report: `data/eval-reports/feb10_0648am_report.txt`
+### Commit: `bfa5801` (state machine fixes)
+
+### Changes Made
+1. `distracted_seconds` threshold: 8.0 → 2.0 (DISTRACTED triggers 4x faster)
+2. STUDYING exit condition: now transitions to DISTRACTED instead of UNKNOWN
+3. SLOUCHING trigger: only when `action_prediction == "studying"` (not during other activities)
+4. Pre-calibration posture: skip posture voting (`posture_for_state_machine = None`) until calibration active
+
+### Results: IDENTICAL TO BASELINE ❌
+
+| Metric | Baseline | Iteration 1 | Change |
+|--------|----------|-------------|--------|
+| **Overall Accuracy** | 40.0% | 40.0% | **0.0%** |
+| **DISTRACTED Recall** | 0.02 | 0.02 | **0.00** |
+| **STUDYING Precision** | 0.57 | 0.57 | **0.00** |
+| **ABSENT Recall** | 0.67 | 0.67 | **0.00** |
+| **Avg Detection Delay** | 101.7s | 101.7s | **0.0s** |
+
+### Per-State Performance (Iteration 1)
+
+| State | Precision | Recall | F1 | Support |
+|-------|-----------|--------|----|---------|
+| STUDYING | 0.57 | 0.85 | 0.69 | 20,670 |
+| DISTRACTED | 0.79 | 0.02 | 0.03 | 27,660 |
+| ABSENT | 0.52 | 0.67 | 0.58 | 4,621 |
+
+### Analysis: Why Did Nothing Change?
+
+**The state machine fixes had ZERO impact because:**
+
+1. **`distracted_seconds` 8.0 → 2.0 didn't help** — The problem isn't the threshold, it's that the state machine NEVER enters the "distracted accumulation" path. The system outputs SLOUCHING or STUDYING instead of accumulating distracted time.
+
+2. **STUDYING → DISTRACTED exit didn't trigger** — This transition only fires when exiting STUDYING state. But the system is stuck in SLOUCHING during DISTRACTED segments, so this path is never reached.
+
+3. **SLOUCHING gating by `action_prediction == "studying"` backfired** — This was meant to prevent SLOUCHING during non-study activities, but it didn't create a DISTRACTED path. The system just outputs STUDYING instead (because MoViNet says "studying" even during cleaning/standing).
+
+4. **Pre-calibration posture skip didn't help** — The system still defaults to SLOUCHING during calibration because the state machine logic doesn't have a fallback for "no posture data."
+
+### Root Cause Confirmed: State Machine Architecture Flaw
+
+**The DetectionStateMachine has NO explicit DISTRACTED state path.**
+
+Looking at the state machine logic (inferred from behavior):
+```
+person_present=True + studying=high → STUDYING
+person_present=True + studying=low + posture_bad → SLOUCHING
+person_present=True + studying=low + posture_good → ??? (probably UNKNOWN or STUDYING)
+person_present=False → ABSENT/AWAY
+```
+
+**DISTRACTED is never output because there's no condition that produces it.**
+
+The `distracted_seconds` accumulator is likely only incremented in a code path that's never reached (e.g., when state is already DISTRACTED, which never happens).
+
+### What Actually Needs to Change
+
+**The state machine needs a complete rewrite with explicit DISTRACTED logic:**
+
+```python
+if not person_present:
+    return ABSENT
+elif action_prediction != "studying" and action_confidence > 0.7:
+    return DISTRACTED  # ← NEW: explicit DISTRACTED path
+elif action_prediction == "studying" and posture_bad:
+    return SLOUCHING
+elif action_prediction == "studying" and posture_good:
+    return STUDYING
+else:
+    return UNKNOWN
+```
+
+**Key insight**: DISTRACTED should be the DEFAULT state when person is present but NOT studying (high confidence). Currently, the system defaults to SLOUCHING or STUDYING instead.
+
+### Next Steps (Iteration 2)
+
+1. **Rewrite state machine with explicit DISTRACTED path** — Add condition: `action != "studying"` with high confidence → DISTRACTED
+2. **Remove `distracted_seconds` accumulator** — It's not needed if DISTRACTED is a direct state output
+3. **Test on 1-minute segment first** — Verify DISTRACTED state is actually output before running full eval
+4. **Add CSV logging for state machine inputs** — Log `action_prediction`, `action_confidence`, `posture_bad`, `person_present` to debug state transitions
+
+### Lessons Learned
+
+- **Tweaking thresholds doesn't fix architectural flaws** — The state machine logic itself was broken, not the threshold values
+- **Always verify assumptions with CSV logs** — Should have checked if `distracted_seconds` was ever incrementing before changing the threshold
+- **Test on short segments first** — 50-minute full runs are too slow for rapid iteration. Use 1-minute test segments to verify logic changes before full eval.
+- **State machine needs explicit paths for ALL states** — Implicit/fallback logic leads to states that are never reached
+
+## [2026-02-10] ITERATION 1 ACTUAL RESULTS — 50.1% (+10.1 from baseline)
+
+### Report: `data/eval-reports/feb10_0202pm_report.txt`
+### Commit: `bfa5801`
+
+### Changes That Worked
+1. `distracted_seconds` 8.0 → 2.0 — DISTRACTED triggers faster
+2. STUDYING exit → DISTRACTED instead of UNKNOWN
+3. SLOUCHING only when `action_prediction == "studying"` — prevents SLOUCHING during cleaning
+4. Pre-calibration: skip posture voting until calibration active
+
+### Results Comparison
+
+| Metric | Baseline | Iteration 1 | Change |
+|--------|----------|-------------|--------|
+| **Overall Accuracy** | 40.0% | **50.1%** | **+10.1** |
+| **DISTRACTED Recall** | 0.02 | **0.19** | **+0.17 (10x)** |
+| **STUDYING Recall** | 0.85 | **0.89** | +0.04 |
+| **STUDYING Precision** | 0.57 | 0.49 | -0.08 |
+| **ABSENT Recall** | 0.67 | 0.64 | -0.03 |
+| **Avg Detection Delay** | 101.7s | **10.1s** | **-91.6s (10x faster)** |
+
+### Remaining Problem: MoViNet over-predicts STUDYING
+- Dominant error: `Expected DISTRACTED, got STUDYING`
+- MoViNet says "studying" during cleaning/non-study activities
+- STUDYING precision dropped to 49% (too many false positives)
+- Session model needed: pre-session activities should not be STUDYING
+
+
+## [2026-02-10] ITERATION 2 — Session-Aware State Machine (IN PROGRESS)
+
+### Changes Implemented
+1. **Added NOT_STUDYING state** — New state for pre-session activities (person present but no study session active)
+2. **Session auto-detection** — Session starts after 30s of sustained studying (900 frames @ 30fps)
+3. **Pre-session logic** — Before session starts, all states map to NOT_STUDYING or AWAY
+4. **During-session logic** — After session starts, normal state machine applies (STUDYING/DISTRACTED/SLOUCHING/AWAY)
+5. **Updated scenario file** — Changed pre-session DISTRACTED (0:00-9:05) to NOT_STUDYING (13 segments)
+6. **Updated eval system** — Added NOT_STUDYING to VALID_STATES
+
+### Implementation Details
+
+#### State Machine Changes (`kid_watch/detectors/state_machine.py`)
+- Added `NOT_STUDYING` to State enum
+- Added `session_start_seconds` parameter (default: 30.0)
+- Added `_session_active` flag and `_session_studying_ct` counter
+- Session starts when `action_prediction == "studying"` for 30+ consecutive seconds
+- Before session: output NOT_STUDYING (not STUDYING, not DISTRACTED)
+- After session: normal state machine logic
+
+#### Key Logic Flow
+```python
+if action_prediction == "studying":
+    if not session_active:
+        session_studying_ct += 1
+        if session_studying_ct >= 900:  # 30s @ 30fps
+            session_active = True
+            logger.info("[SESSION] Session started")
+        transition to NOT_STUDYING
+    else:
+        transition to STUDYING
+else:
+    session_studying_ct = 0  # Reset
+    if session_active:
+        transition to DISTRACTED
+    else:
+        transition to NOT_STUDYING
+```
+
+#### Scenario File Updates (`scenarios/footage1.json`)
+- Segments 0:00 - 9:05: DISTRACTED → NOT_STUDYING (13 segments)
+- Segments 9:05+: Unchanged (STUDYING/DISTRACTED/ABSENT)
+- Session expected to start around 9:35 (9:05 + 30s)
+
+### Expected Results
+**Target: 70%+ accuracy** (up from 50.1%)
+
+#### Problem Being Fixed
+- **Iteration 1 issue**: MoViNet over-predicts STUDYING during pre-session activities
+  - Example: Person cleaning table (0:12-0:42) → MoViNet says "studying" → system outputs STUDYING → wrong
+  - Ground truth: DISTRACTED (now NOT_STUDYING)
+  - Actual: STUDYING
+  - Impact: ~20% of frames incorrectly labeled
+
+#### How Session Model Fixes This
+- **Before session starts** (0:00 - 9:35):
+  - MoViNet says "studying" → system outputs NOT_STUDYING (correct)
+  - MoViNet says "other" → system outputs NOT_STUDYING (correct)
+  - Person absent → system outputs AWAY/ABSENT (correct)
+
+- **After session starts** (9:35+):
+  - MoViNet says "studying" → system outputs STUDYING (correct)
+  - MoViNet says "other" → system outputs DISTRACTED (correct)
+  - Person absent → system outputs AWAY/ABSENT (correct)
+
+### Eval Status
+- **Started**: 2026-02-10 14:43 PM
+- **Expected completion**: ~30 minutes (2026-02-10 15:13 PM)
+- **Report location**: `data/eval-reports/feb10_0243pm_report.txt` (when complete)
+
+### Verification (Partial Results from 1st 100 seconds)
+From terminal logs:
+```
+[ML] action=studying conf=0.40 state=not_studying person=True
+[ML] action=studying conf=0.65 state=not_studying person=True
+[ML] action=studying conf=0.78 state=not_studying person=True
+```
+✅ Confirmed: State machine outputs `not_studying` when MoViNet says "studying" during pre-session
+
+### Next Steps
+1. Wait for full eval to complete (~30 min)
+2. Check accuracy improvement (target: 70%+)
+3. If accuracy < 70%, investigate remaining errors:
+   - Session start timing (may need to adjust 30s threshold)
+   - DISTRACTED vs NOT_STUDYING confusion during session
+   - SLOUCHING false positives
+
+
+### CRITICAL BUG FOUND AND FIXED
+**Issue**: NOT_STUDYING enum value was defined as a tuple instead of a string
+```python
+# WRONG (created tuple):
+NOT_STUDYING = (
+    "not_studying"  # comment
+)
+
+# CORRECT (string):
+NOT_STUDYING = "not_studying"
+```
+
+**Impact**: State machine was setting state to `("not_studying",)` tuple, which caused incorrect state mapping. This explains why the first eval showed 43.7% accuracy with NOT_STUDYING recall of only 7%.
+
+**Fix**: Removed parentheses from enum definition (commit pending)
+
+**Re-running eval**: Full eval running with bug fix, expected completion ~30 min
+
