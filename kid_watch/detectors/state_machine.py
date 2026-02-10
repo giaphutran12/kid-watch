@@ -29,7 +29,7 @@ class DetectionStateMachine:
         studying_enter_frames: int = 3,
         studying_exit_frames: int = 5,
         sleeping_enter_frames: int = 3,
-        distracted_seconds: float = 8.0,
+        distracted_seconds: float = 2.0,  # Reduced from 8.0 to 2.0 seconds
         away_seconds: float = 3.0,
         slouch_frames: int = 30,
     ):
@@ -114,6 +114,7 @@ class DetectionStateMachine:
             self._studying_ct = 0
             self._studying_exit_ct = 0
             self._distracted_ct = 0
+            self._slouch_ct = 0
             if self._sleeping_ct >= self.sleeping_enter_frames:
                 self._transition(State.SLEEPING, action_confidence)
         elif action_prediction == "studying":
@@ -127,19 +128,25 @@ class DetectionStateMachine:
             self._sleeping_ct = 0
             self._studying_ct = 0
             self._distracted_ct += 1
+            self._slouch_ct = 0
 
             if self._state == State.STUDYING:
                 self._studying_exit_ct += 1
                 if self._studying_exit_ct >= self.studying_exit_frames:
                     self._studying_exit_ct = 0
-                    self._transition(State.UNKNOWN, action_confidence)
+                    self._transition(State.DISTRACTED, action_confidence)
             elif self._distracted_ct >= self.distracted_frames:
                 self._transition(State.DISTRACTED, action_confidence)
 
-        if posture_good is False and self._state not in (
-            State.AWAY,
-            State.PHONE,
-            State.SLEEPING,
+        if (
+            posture_good is False
+            and action_prediction == "studying"
+            and self._state
+            not in (
+                State.AWAY,
+                State.PHONE,
+                State.SLEEPING,
+            )
         ):
             self._slouch_ct += 1
             if self._slouch_ct >= self.slouch_frames:

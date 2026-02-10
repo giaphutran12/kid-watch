@@ -368,13 +368,18 @@ class KidWatchApp:
                         and yolo_result.keypoints is not None
                         and len(yolo_result.keypoints.data) > 0
                     )
-                    # Hold last known posture when detection fails (don't assume good)
-                    if posture_good is not None:
-                        self._last_posture_good = posture_good
+
+                    # Pre-calibration: don't use posture (skip posture voting)
+                    posture_for_state_machine = None
+                    if self.calibration_engine.state == "active":
+                        if posture_good is not None:
+                            self._last_posture_good = posture_good
+                        posture_for_state_machine = self._last_posture_good
+
                     state_machine_state, state_confidence = self.state_machine.update(
                         action_prediction=self._last_action,
                         phone_detected=phone_detected,
-                        posture_good=self._last_posture_good,
+                        posture_good=posture_for_state_machine,
                         person_present=person_present,
                     )
 

@@ -1,0 +1,18 @@
+{
+  "video": "data/footage/test-segments/footage1_1min.mov",
+  "metadata": {
+    "recorded_by": "Edward",
+    "date": "2026-02-10",
+    "duration_seconds": 60,
+    "resolution": "1920x1080",
+    "fps": 30,
+    "camera_position": "left side of person",
+    "description": "First 1 minute of footage1: coming into scene, cleaning table"
+  },
+  "segments": [
+    {"start": "0:00", "end": "0:12", "expected": "ABSENT", "label": "Coming into scene, stretching"},
+    {"start": "0:12", "end": "0:42", "expected": "DISTRACTED", "label": "At desk, cleaning table"},
+    {"start": "0:42", "end": "0:57", "expected": "ABSENT", "label": "Left scene (wetting paper towel)"},
+    {"start": "0:57", "end": "1:00", "expected": "DISTRACTED", "label": "Half-standing, cleaning table"}
+  ]
+}
