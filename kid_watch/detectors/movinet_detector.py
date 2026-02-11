@@ -52,11 +52,9 @@ class MoViNetDetector:
     # Magic number constants
     SAFETY_RESET_INTERVAL = 30.0  # Level 2: Safety reset every 30s (keeps EMA)
     # Asymmetric EMA: confidence drops faster than it rises
-    # This prevents the system from staying "stuck" on studying for ~30 seconds
-    # when the student stops studying. Slow promote ensures brief glances at desk
-    # don't immediately register as studying.
-    EMA_DECAY_UP = 0.92  # Slow to promote: need sustained studying evidence
-    EMA_DECAY_DOWN = 0.75  # Fast to demote: quickly drops when MoViNet says "other"
+    # Rebalanced to respond faster to studying (was too biased against it)
+    EMA_DECAY_UP = 0.85  # Faster rise: respond quicker to studying
+    EMA_DECAY_DOWN = 0.82  # Slower fall: less aggressive drop
     DISAGREEMENT_THRESHOLD = 2.0  # seconds of disagreement before reset
     LOG_INTERVAL_FRAMES = 30  # Log inference timing every N frames
     NUM_CLASSES_TFHUB = 600  # Kinetics-600 pre-trained model
