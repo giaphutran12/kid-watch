@@ -32,9 +32,9 @@ class EngagementEngine:
     STUDYING_EXIT_DWELL = 0.4
 
     # Engagement scoring weights
-    WEIGHT_POSTURE = 0.30
-    WEIGHT_STUDYING_CONFIDENCE = 0.40
-    WEIGHT_NO_PHONE = 0.30
+    WEIGHT_POSTURE = 0.20
+    WEIGHT_STUDYING_CONFIDENCE = 0.55  # MoViNet — primary signal
+    WEIGHT_NO_PHONE = 0.25
 
     # Phone detection confirmation ratio
     PHONE_CONFIRMATION_RATIO = 0.6

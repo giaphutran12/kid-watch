@@ -368,13 +368,18 @@ class KidWatchApp:
                         and yolo_result.keypoints is not None
                         and len(yolo_result.keypoints.data) > 0
                     )
-                    # Hold last known posture when detection fails (don't assume good)
-                    if posture_good is not None:
-                        self._last_posture_good = posture_good
+
+                    # Pre-calibration: don't use posture (skip posture voting)
+                    posture_for_state_machine = None
+                    if self.calibration_engine.state == "active":
+                        if posture_good is not None:
+                            self._last_posture_good = posture_good
+                        posture_for_state_machine = self._last_posture_good
+
                     state_machine_state, state_confidence = self.state_machine.update(
                         action_prediction=self._last_action,
                         phone_detected=phone_detected,
-                        posture_good=self._last_posture_good,
+                        posture_good=posture_for_state_machine,
                         person_present=person_present,
                     )
 
@@ -384,18 +389,20 @@ class KidWatchApp:
                         else 0.0
                     )
 
-                    # GAZE GATE: Override studying_confidence if looking away
-                    if gaze_at_desk is False:
-                        studying_confidence = 0.0
-                    # REVERSE GAZE GATE: If looking at desk but MoViNet disagrees, trust gaze partially
-                    elif gaze_at_desk is True and studying_confidence == 0.0:
-                        studying_confidence = 0.5
+                    # SOFT GAZE PENALTY: Apply small penalty when looking away, but don't zero out MoViNet
+                    if gaze_at_desk is False and studying_confidence > 0.0:
+                        # Apply 15% penalty when looking away (multiply by 0.85)
+                        original_confidence = studying_confidence
+                        studying_confidence = studying_confidence * 0.85
                         current_time = self.clock.now()
                         if current_time - self._last_gaze_log_time >= 1.0:
                             print(
-                                f"[GAZE] Reverse gate: gaze_at_desk=True overrides MoViNet (action={self._last_action}) → studying_confidence=0.5"
+                                f"[GAZE-FIX] MoViNet conf={original_confidence:.2f} action={self._last_action} gaze={gaze_at_desk} → studying_conf={studying_confidence:.2f} (soft penalty)"
                             )
                             self._last_gaze_log_time = current_time
+                    # When gaze is unknown (None), don't modify confidence at all
+                    elif gaze_at_desk is None:
+                        pass  # Keep MoViNet confidence as-is
 
                     if not person_present:
                         self._no_person_frames += 1
@@ -647,6 +654,8 @@ class KidWatchApp:
                         state_value = state_machine_state.value.upper()
                         if state_value == "AWAY":
                             actual_state = "ABSENT"
+                        elif state_value == "NOT_STUDYING":
+                            actual_state = "NOT_STUDYING"
                         else:
                             actual_state = state_value
                     else:

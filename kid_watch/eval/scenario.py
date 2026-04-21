@@ -20,6 +20,7 @@ VALID_STATES = {
     "WARNING",
     "ABSENT",
     "CALIBRATING",
+    "NOT_STUDYING",
     "UNKNOWN",
 }
 
