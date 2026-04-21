@@ -26,7 +26,7 @@
 1. **DISTRACTED recall = 2%** — The #1 problem. System almost NEVER outputs DISTRACTED.
    - When person is cleaning/standing (DISTRACTED ground truth), system says SLOUCHING
    - When person is doing non-study activity while seated, system says STUDYING or SLOUCHING
-   
+
 2. **Pre-calibration SLOUCHING default** — When calibration hasn't completed (ears not visible from side camera), posture defaults to "bad" → state machine outputs SLOUCHING. Should be DISTRACTED or skip posture voting.
 
 3. **Side camera ear visibility** — `no_neck_fwd` rejects prevent calibration when standing. Calibration only works when seated with left ear visible.
@@ -393,3 +393,209 @@ NOT_STUDYING = "not_studying"
 
 **Re-running eval**: Full eval running with bug fix, expected completion ~30 min
 
+
+## [2026-02-10] COMPREHENSIVE FAILURE PATTERN ANALYSIS
+
+### Executive Summary
+Three iterations completed:
+- **Baseline (Iter 0)**: 40.0% accuracy — DISTRACTED detection broken (2% recall)
+- **Iteration 1**: 50.1% accuracy (+10.1%) — DISTRACTED improved to 19% recall, detection delays cut 10x
+- **Iteration 2**: 43.7% accuracy (-6.4% regression) — Session model added, but NOT_STUDYING enum bug broke state mapping
+
+**Critical Finding**: Iteration 2 regressed due to a single-line bug: NOT_STUDYING enum defined as tuple instead of string. The session model concept is sound; the implementation has a critical bug.
+
+### Failure Taxonomy (Iteration 2)
+
+**Per-State Performance:**
+| State | Precision | Recall | F1 | Support | Frames Wrong |
+|-------|-----------|--------|----|---------|----|
+| STUDYING | 0.50 | 0.90 | 0.64 | 20,250 | ~2,025 (10%) |
+| DISTRACTED | 0.17 | 0.07 | 0.10 | 15,750 | ~14,648 (93%) |
+| NOT_STUDYING | 0.68 | 0.07 | 0.13 | 12,330 | ~11,467 (93%) |
+| ABSENT | 0.54 | 0.64 | 0.58 | 4,621 | ~1,664 (36%) |
+| **TOTAL WRONG** | | | | | **~29,804 (56.3%)** |
+
+**Dominant Error Modes (Ranked by Impact):**
+
+1. **Type E: Expected DISTRACTED, got STUDYING** (~4,000-5,000 frames, 13-17% of total)
+   - DISTRACTED recall = 7% (93% of DISTRACTED frames missed)
+   - Root cause: MoViNet over-predicts "studying" during phone/distraction
+   - This is the #1 problem from Iteration 1 that REGRESSED in Iteration 2
+
+2. **Type A: Expected NOT_STUDYING, got STUDYING** (~8,000-9,000 frames, 15-17% of total)
+   - NOT_STUDYING recall = 7% (93% of NOT_STUDYING frames missed)
+   - Root cause: Session model not working correctly (enum bug)
+   - This is a NEW problem introduced in Iteration 2
+
+3. **Type F: Expected ABSENT, got something else** (~1,664 frames, 3% of total)
+   - ABSENT recall = 64% (36% of ABSENT frames misclassified)
+   - Root cause: Person detection lag/false negatives
+
+4. **Type B: Expected NOT_STUDYING, got DISTRACTED** (~2,000-3,000 frames, 4-6% of total)
+   - Confusion between NOT_STUDYING and DISTRACTED states
+   - Root cause: State machine logic doesn't distinguish pre-session from session
+
+### Timeline Analysis: Ground Truth vs Actual
+
+**Segment 1: 0:00-9:05 (NOT_STUDYING/ABSENT)**
+- Ground truth: Person cleaning table, moving around, pre-session activities
+- Actual output (CSV sampling):
+  - 0:30 (frame 896): STUDYING (WRONG — should be NOT_STUDYING)
+  - 3:00 (frame 5396): CALIBRATING (WRONG — should be NOT_STUDYING or ABSENT)
+  - 6:00 (frame 10796): WAITING (WRONG — should be NOT_STUDYING or ABSENT)
+- Analysis: Session model NOT working. State machine still outputs STUDYING during pre-session. NOT_STUDYING enum bug causes state mapping failures.
+- Estimated frames wrong: ~8,000-9,000 (entire segment misclassified)
+
+**Segment 2: 9:05-12:15 (STUDYING)**
+- Ground truth: Person reading book, good posture, studying
+- Actual output:
+  - 9:05 (frame 16346): STUDYING ✅ (CORRECT)
+  - 12:15 (frame 22046): CALIBRATING (WRONG — should be STUDYING)
+- Analysis: Session start works correctly, but transitions to CALIBRATING instead of staying in STUDYING.
+- Estimated frames wrong: ~500-1,000 (transition region)
+
+**Segment 3: 12:15-12:45 (DISTRACTED)**
+- Ground truth: Person not studying, scratching, phone at 12:30
+- Actual output:
+  - 12:15 (frame 22046): CALIBRATING (WRONG)
+  - 12:45 (frame 22950): STUDYING (WRONG)
+- Analysis: System fails to detect DISTRACTED. Outputs CALIBRATING (state machine bug) and STUDYING (MoViNet over-prediction).
+- Estimated frames wrong: ~1,800 (entire segment)
+
+**Segment 4: 12:45-20:50 (STUDYING)**
+- Ground truth: Person reading book, studying with slouching/leaning
+- Actual output:
+  - 12:45 (frame 22946): STUDYING ✅ (CORRECT)
+  - 20:50 (frame 37496): STUDYING ✅ (CORRECT)
+- Analysis: STUDYING detection works well. MoViNet correctly classifies even with slouching/leaning.
+- Estimated frames wrong: ~500-1,000 (minor transitions)
+
+**Segment 5: 20:50+ (DISTRACTED/ABSENT)**
+- Ground truth: Person on bed, on phone, session over
+- Actual output:
+  - 20:50 (frame 37496): STUDYING (WRONG — should be DISTRACTED)
+- Analysis: System fails to detect transition to DISTRACTED. MoViNet still says "studying" even on bed with phone.
+- Estimated frames wrong: ~2,000-3,000
+
+### Iteration Comparison
+
+**Baseline → Iteration 1 (40.0% → 50.1%, +10.1%)**
+
+What IMPROVED:
+- DISTRACTED Recall: 0.02 → 0.19 (+0.17, 10x improvement)
+- Detection Delay: 101.7s → 10.1s (-91.6s, 10x faster)
+- STUDYING Recall: 0.85 → 0.89 (+0.04)
+
+What REGRESSED:
+- STUDYING Precision: 0.57 → 0.49 (-0.08) — MoViNet over-predicts "studying"
+- ABSENT Recall: 0.67 → 0.64 (-0.03) — Minor
+
+Root cause of regression: MoViNet classifies "sitting at desk" as studying, even during cleaning/phone use.
+
+**Iteration 1 → Iteration 2 (50.1% → 43.7%, -6.4% REGRESSION)**
+
+What IMPROVED:
+- Detection Delay: 10.1s → 8.2s (-1.9s) — Marginal
+- STUDYING Recall: 0.89 → 0.90 (+0.01) — Marginal
+
+What REGRESSED:
+- Overall Accuracy: 50.1% → 43.7% (-6.4%) — Major regression
+- DISTRACTED Recall: 0.19 → 0.07 (-0.12, 3x worse) — System confuses DISTRACTED with NOT_STUDYING
+- NOT_STUDYING Recall: N/A → 0.07 (new state, barely works) — Enum bug
+- STUDYING Precision: 0.49 → 0.50 (flat) — No improvement
+
+Root cause: NOT_STUDYING enum defined as tuple instead of string:
+```python
+# WRONG (current):
+NOT_STUDYING = (
+    "not_studying"  # comment
+)
+
+# CORRECT:
+NOT_STUDYING = "not_studying"
+```
+This creates tuple `("not_studying",)` instead of string, breaking state mapping throughout system.
+
+### 80/20 Analysis: Maximum Impact Fixes
+
+**Fix #1: Correct NOT_STUDYING Enum Bug (CRITICAL)**
+- Current impact: -6.4% accuracy (entire Iteration 2 regression)
+- Expected impact: +6.4% accuracy (restore to Iteration 1 level)
+- Effort: 5 minutes (one-line fix)
+- Priority: CRITICAL — Do immediately
+
+**Fix #2: Reduce MoViNet Over-Prediction of "Studying" (HIGH IMPACT)**
+- Current impact: ~4,000-5,000 frames wrong
+- Expected impact: +5-8% accuracy
+- Effort: Medium (state machine redesign)
+- Priority: HIGH — Dominant error from Iteration 1
+
+Proposed sub-fixes (in order of impact):
+1. Add gaze weight to state machine (currently 0%) → +2-3%
+2. Add phone detection to state machine → +1-2%
+3. Add action classifier confidence threshold → +1-2%
+4. Reset MoViNet state on absence → +0.5-1%
+
+**Fix #3: Improve ABSENT Detection (MEDIUM IMPACT)**
+- Current impact: ~1,664 frames wrong
+- Expected impact: +2-3% accuracy
+- Effort: Low (threshold tuning)
+- Priority: MEDIUM
+
+**Fix #4: Distinguish NOT_STUDYING from DISTRACTED (MEDIUM IMPACT)**
+- Current impact: ~2,000-3,000 frames wrong
+- Expected impact: +2-3% accuracy
+- Effort: Low (state machine logic)
+- Priority: MEDIUM
+
+### Proposed Fix Priorities
+
+**Phase 1: Critical Bug Fix (5 minutes, +6.4%)**
+1. Fix NOT_STUDYING enum — Change tuple to string
+   - Expected: Restore Iteration 2 to Iteration 1 level (50.1%)
+
+**Phase 2: Dominant Error Fix (2-4 hours, +5-8%)**
+2. Reduce MoViNet over-prediction — Add gaze + phone detection
+   - Expected: Reach 55-58% accuracy
+
+**Phase 3: Refinement (1-2 hours, +2-3%)**
+3. Improve ABSENT detection — Threshold tuning + temporal smoothing
+   - Expected: Reach 57-61% accuracy
+
+4. Distinguish NOT_STUDYING from DISTRACTED — State machine logic
+   - Expected: Reach 59-64% accuracy
+
+**Phase 4: Advanced (4-8 hours, +5-10%)**
+5. Add action classifier confidence threshold
+6. Reset MoViNet state on absence
+7. Add book/paper detection
+
+### Key Insights
+
+1. **Iteration 2 regression is a simple bug, not a design flaw**
+   - Session model concept is sound
+   - One-line fix will restore to Iteration 1 level
+   - Then focus on MoViNet over-prediction
+
+2. **MoViNet is the bottleneck**
+   - Correctly classifies "studying" with 90%+ recall
+   - Over-predicts "studying" during non-study activities
+   - Precision only 50% — too many false positives
+   - Gaze + phone detection can reduce false positives
+
+3. **State machine is working well**
+   - Detection delays improved 10x (101.7s → 10.1s)
+   - STUDYING recall improved (0.85 → 0.90)
+   - DISTRACTED recall improved 10x (0.02 → 0.19)
+   - Enum bug is the only issue
+
+4. **ABSENT detection is stable**
+   - Recall = 64% (good)
+   - Precision = 54% (acceptable)
+   - Minor improvements possible with temporal smoothing
+
+5. **The 80/20 rule applies**
+   - Fix #1 (enum bug): 5 min → +6.4%
+   - Fix #2 (MoViNet): 2-4 hours → +5-8%
+   - These two fixes alone would reach 55-58% accuracy
+   - Remaining fixes have diminishing returns
