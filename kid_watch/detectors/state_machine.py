@@ -210,6 +210,7 @@ class DetectionStateMachine:
         self._sleeping_ct = 0
         self._distracted_ct = 0
         self._slouch_ct = 0
+        self._session_studying_ct = 0
 
     def reset(self):
         logger.info("[STATE] Reset")
